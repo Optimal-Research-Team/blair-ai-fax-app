@@ -17,7 +17,7 @@ const robotoMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Blair Fax - AI Fax Sorter",
+  title: "Blair MRI - AI Referral Management",
   description: "Intelligent fax indexing and referral management for healthcare",
   icons: {
     icon: "/logo-white-bg.svg",

@@ -31,6 +31,16 @@ function computeInitials(name: string): string {
 }
 
 export async function getCurrentUser(): Promise<AuthUserData | null> {
+  // DEV BYPASS: return mock user when no Supabase env vars are set
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return {
+      id: 'dev-user-001',
+      email: 'peter@optimal.health',
+      name: 'Peter Phua',
+      initials: 'PP',
+    }
+  }
+
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 

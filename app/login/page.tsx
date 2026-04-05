@@ -91,7 +91,7 @@ export default function LoginPage() {
             width={48}
             height={48}
           />
-          <h1 className="text-xl font-semibold tracking-tight">Blair Fax</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Blair MRI</h1>
           <p className="text-sm text-muted-foreground">Sign in to continue</p>
         </div>
 

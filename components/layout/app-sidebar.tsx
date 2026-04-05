@@ -232,7 +232,7 @@ export function AppSidebar() {
                   className="shrink-0"
                 />
                 <p className="text-xl font-semibold tracking-tight text-primary whitespace-nowrap">
-                  Blair Fax
+                  Blair MRI
                 </p>
               </Link>
               <Button

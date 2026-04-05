@@ -2,6 +2,11 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  // DEV BYPASS: skip entire auth check when no Supabase env vars are set
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })

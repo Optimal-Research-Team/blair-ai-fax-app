@@ -1,4 +1,4 @@
-export const APP_NAME = "Blair Fax";
+export const APP_NAME = "Blair MRI";
 export const APP_VERSION = "1.0.0-beta";
 
 // ─── Priority (Brutalist) ────────────────────────────────────

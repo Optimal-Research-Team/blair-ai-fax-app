@@ -7,6 +7,8 @@ import { WorklistItem } from '@/types/worklist'
 import { ActionResult } from '@/lib/action-result'
 import { createClient } from '@/utils/supabase/server'
 
+const IS_DEV_MODE = !process.env.NEXT_PUBLIC_SUPABASE_URL
+
 /**
  * Convert an s3:// URI to a local proxy URL that avoids CORS issues.
  * The /api/pdf route streams the object from S3 server-side.
@@ -39,6 +41,10 @@ const CLASSIFICATION_SELECT = `
 `
 
 export async function fetchClassifications(): Promise<ActionResult<Fax[]>> {
+  if (IS_DEV_MODE) {
+    const { MOCK_FAXES } = await import('@/data/mock-fax-data')
+    return { success: true, data: MOCK_FAXES }
+  }
   const supabase = await createClient()
 
   const { data, error, status } = await supabase
@@ -82,6 +88,7 @@ const FAILED_JOB_SELECT = `
 `
 
 export async function fetchFailedJobs(): Promise<ActionResult<WorklistItem[]>> {
+  if (IS_DEV_MODE) return { success: true, data: [] }
   const supabase = await createClient()
 
   const { data, error, status } = await supabase
@@ -117,6 +124,7 @@ export async function saveClassification(
   classificationId: string,
   updates: { classification_stage?: string; classification_status?: string },
 ): Promise<ActionResult<null>> {
+  if (IS_DEV_MODE) return { success: true, data: null }
   const supabase = await createClient()
 
   const { error, status } = await supabase
@@ -330,6 +338,7 @@ export type OrganizationRow = {
 }
 
 export async function fetchOrganizations(): Promise<ActionResult<OrganizationRow[]>> {
+  if (IS_DEV_MODE) return { success: true, data: [{ id: 'org-kmh', name: 'KMH Cardiology' }] }
   const supabase = await createClient()
 
   const { data, error, status } = await supabase
@@ -356,6 +365,16 @@ export type OrganizationWithCategories = {
 }
 
 export async function fetchOrganizationsWithCategories(): Promise<ActionResult<OrganizationWithCategories[]>> {
+  if (IS_DEV_MODE) {
+    return {
+      success: true,
+      data: [{
+        id: 'org-kmh',
+        name: 'KMH Cardiology',
+        categories: ['Cardiology Referral', 'Lab Results', 'ECG Report', 'Echo Report', 'Discharge Summary', 'Stress Test', 'Holter Report', 'MRI Report', 'MRI Requisition', 'CT Scan Report', 'Nuclear Imaging', 'Consultation Report', 'Insurance / Admin', 'Medication List', 'BNP Results', 'Troponin Results', 'Angiography Report', 'Device Interrogation'],
+      }],
+    }
+  }
   const supabase = await createClient()
 
   const { data, error, status } = await supabase
@@ -393,6 +412,27 @@ export type PatientRow = {
 }
 
 export async function fetchPatients(): Promise<ActionResult<PatientRow[]>> {
+  if (IS_DEV_MODE) {
+    return {
+      success: true,
+      data: [
+        { id: 'pat-001', name: 'Robert Anderson', date_of_birth: '1958-03-15', health_card_number: '1234-567-890', health_card_version: 'AB' },
+        { id: 'pat-002', name: 'Maria Gonzalez', date_of_birth: '1972-07-22', health_card_number: '2345-678-901', health_card_version: 'CD' },
+        { id: 'pat-003', name: 'James Wilson', date_of_birth: '1965-11-08', health_card_number: '3456-789-012', health_card_version: 'EF' },
+        { id: 'pat-004', name: 'Patricia Lee', date_of_birth: '1980-01-30', health_card_number: '4567-890-123', health_card_version: 'GH' },
+        { id: 'pat-005', name: 'David Thompson', date_of_birth: '1953-09-12', health_card_number: '5678-901-234', health_card_version: 'IJ' },
+        { id: 'pat-006', name: 'Susan Miller', date_of_birth: '1968-04-05', health_card_number: '6789-012-345', health_card_version: 'KL' },
+        { id: 'pat-007', name: 'William Brown', date_of_birth: '1960-12-20', health_card_number: '7890-123-456', health_card_version: 'MN' },
+        { id: 'pat-008', name: 'Elizabeth Taylor', date_of_birth: '1975-06-18', health_card_number: '8901-234-567', health_card_version: 'OP' },
+        { id: 'pat-009', name: 'Margaret White', date_of_birth: '1948-08-25', health_card_number: '9012-345-678', health_card_version: 'QR' },
+        { id: 'pat-010', name: 'Thomas Clark', date_of_birth: '1970-02-14', health_card_number: '0123-456-789', health_card_version: 'ST' },
+        { id: 'pat-011', name: 'Jennifer Adams', date_of_birth: '1985-10-03', health_card_number: '1234-567-890', health_card_version: 'UV' },
+        { id: 'pat-012', name: 'Richard Davis', date_of_birth: '1955-05-28', health_card_number: '2345-678-901', health_card_version: 'WX' },
+        { id: 'pat-014', name: 'Helen Martinez', date_of_birth: '1962-07-10', health_card_number: '3456-789-012', health_card_version: 'YZ' },
+        { id: 'pat-015', name: 'George Robinson', date_of_birth: '1957-01-19', health_card_number: '4567-890-123', health_card_version: 'AA' },
+      ],
+    }
+  }
   const supabase = await createClient()
 
   const { data, error, status } = await supabase
@@ -419,6 +459,22 @@ export type ProviderRow = {
 }
 
 export async function fetchProviders(): Promise<ActionResult<ProviderRow[]>> {
+  if (IS_DEV_MODE) {
+    return {
+      success: true,
+      data: [
+        { id: 'prov-001', name: 'Dr. Sarah Chen', title: 'MD, CCFP' },
+        { id: 'prov-002', name: 'Dr. Michael Patel', title: 'MD, FRCPC' },
+        { id: 'prov-003', name: 'Dr. Anita Sharma', title: 'MD' },
+        { id: 'prov-004', name: 'Dr. John Kim', title: 'MD, FRCPC' },
+        { id: 'prov-005', name: 'Dr. Lisa Wang', title: 'MD, FRCPC' },
+        { id: 'prov-006', name: 'Dr. Raj Kapoor', title: 'MD, CCFP' },
+        { id: 'prov-007', name: 'Dr. Emma Foster', title: 'MD, FRCPC' },
+        { id: 'prov-008', name: 'Dr. Amanda Ross', title: 'MD, FRCPC' },
+        { id: 'prov-009', name: 'Dr. Fiona Campbell', title: 'MD' },
+      ],
+    }
+  }
   const supabase = await createClient()
 
   const { data, error, status } = await supabase
@@ -574,6 +630,7 @@ export type CalibrationReport = {
 }
 
 export async function fetchCalibrationReport(): Promise<ActionResult<CalibrationReport | null>> {
+  if (IS_DEV_MODE) return { success: true, data: null }
   const supabase = await createClient()
 
   const { data, error, status } = await supabase
@@ -598,6 +655,7 @@ export async function fetchCalibrationReport(): Promise<ActionResult<Calibration
 // --- Lifecycle (in-progress pipeline items) ---
 
 export async function fetchLifecycleItems(): Promise<ActionResult<LifecycleRow[]>> {
+  if (IS_DEV_MODE) return { success: true, data: [] }
   const supabase = await createClient()
 
   const { data, error, status } = await supabase
