@@ -199,6 +199,7 @@ export function SplitDialog({ fax, open, onOpenChange, onSplitComplete }: SplitD
         classificationStage: ClassificationStage.Unfiled,
         classificationStatus: ClassificationStatus.NeedsReview,
         slaDeadline: addMinutes(now, slaMin).toISOString(),
+        pipelineStatus: "needs_review" as const,
       };
     });
 

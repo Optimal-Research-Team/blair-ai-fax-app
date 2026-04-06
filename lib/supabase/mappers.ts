@@ -186,6 +186,7 @@ export function mapClassificationToFax(row: ClassificationRow): Fax {
     documentDate: row.document_date ?? undefined,
     documentDateConfidenceScore: row.document_date_confidence_score ?? undefined,
     processingState: row.classification_stage === 'filing_in_progress' ? 'filing' : undefined,
+    pipelineStatus: 'needs_review' as const,
   }
 }
 
@@ -247,6 +248,7 @@ export function mapLifecycleToFax(row: LifecycleRow): Fax {
     slaDeadline: '',
     patientMatchStatus: 'pending',
     processingState: row.status === 'receiving' ? 'receiving' : 'classifying',
+    pipelineStatus: 'needs_review' as const,
   }
 }
 

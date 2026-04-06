@@ -196,6 +196,7 @@ export default function SplitPage({ params }: Props) {
         classificationStage: ClassificationStage.Unfiled,
         classificationStatus: ClassificationStatus.NeedsReview,
         slaDeadline: addMinutes(now, slaMin).toISOString(),
+        pipelineStatus: "needs_review" as const,
       };
     });
 

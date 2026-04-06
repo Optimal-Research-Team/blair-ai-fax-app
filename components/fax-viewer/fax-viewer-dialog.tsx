@@ -395,6 +395,7 @@ export function FaxViewerDialog({
       slaDeadline: new Date(new Date(referral.receivedDate).getTime() + 8 * 60 * 60 * 1000).toISOString(),
       pdfUrl: currentDoc.pdfUrl,
       providers: [],
+      pipelineStatus: "needs_review",
     };
   }, [referral, currentDoc]);
 
@@ -596,6 +597,7 @@ export function FaxViewerDialog({
         referralId: referral.id,
         providerInbox: targetInbox,
         providers: [],
+        pipelineStatus: "routed",
       });
     }
     toast.success("Referral completed and filed", {
@@ -664,6 +666,7 @@ export function FaxViewerDialog({
         isReferral: true,
         referralId: referral.id,
         providers: [],
+        pipelineStatus: "not_mri",
       });
     }
     toast.success("Referral declined", {
