@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Fax } from "@/types";
 import { cn } from "@/lib/utils";
 import { Check, X, AlertTriangle, User, FileText, Stethoscope, ShieldCheck, ShieldX, ChevronDown, Zap, ExternalLink, Pencil, UserPlus, Search } from "lucide-react";
@@ -22,6 +22,7 @@ const FIELD_REGIONS: Record<string, HighlightRegion> = {
   areaScan: { x: 55, y: 255, width: 250, height: 30, page: 0 },
   clinicalIndication: { x: 330, y: 255, width: 260, height: 30, page: 0 },
   urgency: { x: 480, y: 83, width: 110, height: 20, page: 0 },
+  urgencyReason: { x: 490, y: 105, width: 110, height: 20, page: 0 },
   previousReports: { x: 36, y: 580, width: 550, height: 30, page: 0 },
 };
 
@@ -45,23 +46,23 @@ const PHYSICIAN_DIRECTORY = [
   { id: 'prov-008', name: 'Dr. Amanda Ross', billing: '01234', specialty: 'Internal Medicine' },
 ];
 
-type TagStatus = "ai_extracted" | "ai_verified" | "ai_match" | "manually_edited" | "failed" | "missing" | "new_entry";
+type TagStatus = "ai_extracted" | "ai_verified" | "ai_match" | "user_verified" | "failed" | "missing" | "new_entry";
 
 function StatusTag({ status }: { status: TagStatus }) {
   const styles: Record<TagStatus, string> = {
     ai_extracted: "bg-emerald-50 text-emerald-700 border-emerald-200",
     ai_verified: "bg-sky-50 text-sky-700 border-sky-200",
     ai_match: "bg-indigo-50 text-indigo-700 border-indigo-200",
-    manually_edited: "bg-violet-50 text-violet-700 border-violet-200",
+    user_verified: "bg-violet-50 text-violet-700 border-violet-200",
     failed: "bg-red-50 text-red-700 border-red-200",
     missing: "bg-amber-50 text-amber-700 border-amber-200",
     new_entry: "bg-sky-50 text-sky-700 border-sky-200",
   };
   const icons: Record<TagStatus, React.ElementType> = {
-    ai_extracted: Check, ai_verified: Zap, ai_match: Search, manually_edited: Pencil, failed: X, missing: AlertTriangle, new_entry: UserPlus,
+    ai_extracted: Check, ai_verified: Zap, ai_match: Search, user_verified: Check, failed: X, missing: AlertTriangle, new_entry: UserPlus,
   };
   const labels: Record<TagStatus, string> = {
-    ai_extracted: "AI Extracted", ai_verified: "AI Verified", ai_match: "AI Match", manually_edited: "Edited", failed: "Failed", missing: "Missing", new_entry: "New Entry",
+    ai_extracted: "AI Extracted", ai_verified: "AI Verified", ai_match: "AI Match", user_verified: "User Verified", failed: "Failed", missing: "Missing", new_entry: "New Entry",
   };
   const Icon = icons[status];
   return (
@@ -71,16 +72,35 @@ function StatusTag({ status }: { status: TagStatus }) {
   );
 }
 
-function EditableValue({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+/** Inline editable text with confirmation flash animation */
+function EditableValue({ value, onChange, placeholder, disabled }: { value: string; onChange: (v: string) => void; placeholder?: string; disabled?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const [flash, setFlash] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const confirm = useCallback((newVal: string) => {
+    onChange(newVal);
+    setEditing(false);
+    if (newVal !== value) {
+      setFlash(true);
+      setTimeout(() => setFlash(false), 800);
+    }
+  }, [onChange, value]);
+
+  if (disabled) {
+    return <span className="text-[12px] font-semibold">{value}</span>;
+  }
 
   if (!editing) {
     return (
       <button type="button" onClick={(e) => { e.stopPropagation(); setDraft(value); setEditing(true); }}
-        className={cn("text-[12px] font-semibold text-left rounded px-1 py-px -ml-1 hover:bg-muted/80 transition-colors inline-flex items-center gap-1 group max-w-full", !value && "text-amber-600 italic font-normal")}
+        className={cn(
+          "text-[12px] font-semibold text-left rounded px-1 py-px -ml-1 hover:bg-muted/80 transition-all inline-flex items-center gap-1 group max-w-full",
+          !value && "text-amber-600 italic font-normal",
+          flash && "ring-2 ring-violet-400 ring-offset-1 bg-violet-50"
+        )}
         title="Click to edit">
         <span className="truncate">{value || placeholder || "Click to enter..."}</span>
         <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
@@ -90,48 +110,69 @@ function EditableValue({ value, onChange, placeholder }: { value: string; onChan
 
   return (
     <Input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => { onChange(draft); setEditing(false); }}
-      onKeyDown={(e) => { if (e.key === "Enter") { onChange(draft); setEditing(false); } if (e.key === "Escape") setEditing(false); }}
+      onBlur={() => confirm(draft)}
+      onKeyDown={(e) => { if (e.key === "Enter") confirm(draft); if (e.key === "Escape") setEditing(false); }}
       onClick={(e) => e.stopPropagation()} className="h-7 text-[12px] font-semibold px-2 py-0.5 w-full" placeholder={placeholder} />
   );
 }
 
-function SearchDropdown({ query, onQueryChange, results, onSelect, placeholder }: {
+/** Search dropdown for matching patients/physicians */
+function SearchDropdown({ query, onQueryChange, results, onSelect, placeholder, bottomAction }: {
   query: string; onQueryChange: (q: string) => void;
   results: { id: string; label: string; sublabel?: string }[];
   onSelect: (id: string) => void; placeholder: string;
+  bottomAction?: { label: string; icon: React.ElementType; onSelect: () => void };
 }) {
   const [focused, setFocused] = useState(false);
+  const showDropdown = focused && (query.length > 0 || bottomAction);
   return (
     <div className="relative" onClick={(e) => e.stopPropagation()}>
       <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
       <Input value={query} onChange={(e) => onQueryChange(e.target.value)}
-        onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 150)}
+        onFocus={() => setFocused(true)} onBlur={() => setTimeout(() => setFocused(false), 200)}
         placeholder={placeholder} className="h-7 text-[11px] pl-7 pr-2" />
-      {focused && query.length > 0 && (
-        <div className="absolute z-20 w-full mt-0.5 bg-popover border rounded-md shadow-lg max-h-36 overflow-auto">
-          {results.length === 0 ? (
+      {showDropdown && (
+        <div className="absolute z-20 w-full mt-0.5 bg-popover border rounded-md shadow-lg max-h-44 overflow-auto">
+          {query.length > 0 && results.length === 0 && (
             <div className="px-2.5 py-1.5 text-[11px] text-muted-foreground">No matches found</div>
-          ) : results.map((r) => (
+          )}
+          {results.map((r) => (
             <button key={r.id} type="button" className="w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-muted flex flex-col"
               onMouseDown={() => onSelect(r.id)}>
               <div className="font-medium">{r.label}</div>
               {r.sublabel && <div className="text-[10px] text-muted-foreground">{r.sublabel}</div>}
             </button>
           ))}
+          {bottomAction && (
+            <>
+              <div className="border-t" />
+              <button type="button" className="w-full px-2.5 py-2 text-left text-[11px] hover:bg-sky-50 flex items-center gap-1.5 text-sky-700 font-medium"
+                onMouseDown={bottomAction.onSelect}>
+                <bottomAction.icon className="h-3 w-3" />{bottomAction.label}
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function TriageItem({ label, extractedValue, checked, onChange, status, fieldKey, onHover, editable, onValueEdit, editPlaceholder, children }: {
+function TriageItem({ label, extractedValue, checked, onChange, status, fieldKey, onHover, editable, onValueEdit, editPlaceholder, disabled, children }: {
   label: string; extractedValue?: string | null; checked: boolean; onChange: (v: boolean) => void; status: TagStatus;
   fieldKey?: string; onHover?: (region: HighlightRegion | null) => void;
-  editable?: boolean; onValueEdit?: (newValue: string) => void; editPlaceholder?: string; children?: React.ReactNode;
+  editable?: boolean; onValueEdit?: (newValue: string) => void; editPlaceholder?: string; disabled?: boolean; children?: React.ReactNode;
 }) {
   const isMissing = status === "missing" || status === "failed";
   const region = fieldKey ? FIELD_REGIONS[fieldKey] : undefined;
+  const [flash, setFlash] = useState(false);
+
+  const handleCheck = (val: boolean) => {
+    onChange(val);
+    setFlash(true);
+    setTimeout(() => setFlash(false), 600);
+  };
+
   return (
     <div>
       <div className={cn(
@@ -139,12 +180,13 @@ function TriageItem({ label, extractedValue, checked, onChange, status, fieldKey
           isMissing && !checked && "bg-amber-50/60 border border-amber-200/70 hover:bg-amber-100/50",
           !isMissing && !checked && "border border-transparent hover:bg-accent/40",
           checked && "bg-muted/15 border border-transparent hover:bg-muted/30",
+          flash && "!bg-violet-50 !border-violet-200 transition-none",
         )}
-        onClick={() => onChange(!checked)}
+        onClick={() => handleCheck(!checked)}
         onMouseEnter={() => region && onHover?.(region)}
         onMouseLeave={() => onHover?.(null)}>
         <div className="shrink-0 mt-px">
-          <Checkbox checked={checked} onCheckedChange={(v) => onChange(!!v)} className="h-4 w-4" onClick={(e) => e.stopPropagation()} />
+          <Checkbox checked={checked} onCheckedChange={(v) => handleCheck(!!v)} className="h-4 w-4" onClick={(e) => e.stopPropagation()} />
         </div>
         <div className="flex-1 min-w-0 space-y-0.5">
           <div className="flex items-center justify-between gap-1.5">
@@ -152,7 +194,7 @@ function TriageItem({ label, extractedValue, checked, onChange, status, fieldKey
             <StatusTag status={status} />
           </div>
           {editable && onValueEdit ? (
-            <EditableValue value={extractedValue || ""} onChange={(v) => onValueEdit(v)} placeholder={editPlaceholder} />
+            <EditableValue value={extractedValue || ""} onChange={(v) => onValueEdit(v)} placeholder={editPlaceholder} disabled={disabled} />
           ) : extractedValue ? (
             <span className={cn("text-[12px] font-semibold block leading-snug", checked ? "text-muted-foreground" : "text-foreground")}>{extractedValue}</span>
           ) : null}
@@ -184,14 +226,15 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
   const aiRaw = fax.aiExtractedFields || {};
   const hasDuplicates = (fax.duplicateReferralIds?.length ?? 0) > 0;
   const [duplicateExpanded, setDuplicateExpanded] = useState(false);
-  const isNewPatient = fax.patientMatchStatus === "not-found";
-  const isNewPhysician = fax.physicianMatchStatus === "not-found";
 
-  const [urgency, setUrgency] = useState<"urgent" | "routine" | "">(fax.isUrgent === true ? "urgent" : fax.isUrgent === false ? "routine" : "");
-
-  const [patientSearch, setPatientSearch] = useState("");
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(isNewPatient ? null : (fax.patientId || null));
+  // Patient state
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(
+    fax.patientMatchStatus === "matched" ? (fax.patientId || null) : null
+  );
+  const [manualNewPatient, setManualNewPatient] = useState(fax.patientMatchStatus === "not-found");
   const matchedPatient = selectedPatientId ? PATIENT_DIRECTORY.find(p => p.id === selectedPatientId) : null;
+  const isNewPatient = manualNewPatient && !matchedPatient;
+  const [patientSearch, setPatientSearch] = useState("");
   const patientSearchResults = useMemo(() => {
     if (!patientSearch.trim()) return [];
     const q = patientSearch.toLowerCase();
@@ -199,9 +242,15 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
       .map(p => ({ id: p.id, label: p.name, sublabel: `DOB: ${p.dob} · OHIP: ${p.ohip}` }));
   }, [patientSearch]);
 
+  // Urgency
+  const [urgency, setUrgency] = useState<"urgent" | "routine" | "">(fax.isUrgent === true ? "urgent" : fax.isUrgent === false ? "routine" : "");
+  const [urgencyReason, setUrgencyReason] = useState(fax.urgencyReason || (fax.isUrgent ? "No reason for urgency found" : ""));
+
+  // Physician
   const [physicianSearch, setPhysicianSearch] = useState("");
   const [selectedPhysicianId, setSelectedPhysicianId] = useState<string | null>(fax.physicianMatchId || null);
   const matchedPhysician = selectedPhysicianId ? PHYSICIAN_DIRECTORY.find(p => p.id === selectedPhysicianId) : null;
+  const isNewPhysician = fax.physicianMatchStatus === "not-found" && !matchedPhysician;
   const physicianSearchResults = useMemo(() => {
     if (!physicianSearch.trim()) return [];
     const q = physicianSearch.toLowerCase();
@@ -209,38 +258,42 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
       .map(p => ({ id: p.id, label: p.name, sublabel: `${p.specialty} · Billing: ${p.billing}` }));
   }, [physicianSearch]);
 
+  // Editable fields
   const [fields, setFields] = useState(() => ({
     patientName: aiRaw.patientName || "", patientDob: aiRaw.patientDob || "", patientOhip: aiRaw.patientOhip || "",
     refPhysician: aiRaw.refPhysician || "", refBilling: aiRaw.refBilling || "", refContact: aiRaw.refContact || "",
     areaScan: aiRaw.areaScan || "", clinicalIndication: aiRaw.clinicalIndication || "",
   }));
-  const [editedFields, setEditedFields] = useState<Set<string>>(new Set());
+  const [userVerifiedFields, setUserVerifiedFields] = useState<Set<string>>(new Set());
 
   const updateField = (key: string, value: string) => {
     setFields(prev => ({ ...prev, [key]: value }));
-    setEditedFields(prev => new Set([...prev, key]));
+    setUserVerifiedFields(prev => new Set([...prev, key]));
     if (value && !checks[key as keyof typeof checks]) setChecks(prev => ({ ...prev, [key]: true }));
   };
 
   const getFieldStatus = (key: string, aiValue: string | null | undefined): TagStatus => {
-    if (editedFields.has(key)) return "manually_edited";
+    if (userVerifiedFields.has(key)) return "user_verified";
+    if (matchedPatient && ["patientName", "patientDob", "patientOhip"].includes(key)) return "ai_match";
     if (aiValue) return "ai_extracted";
     if (aiValue === null) return "failed";
     return "missing";
   };
 
+  // Previous reports
   const prevReportsIsExtracted = fax.previousReportsIndicated !== null && fax.previousReportsIndicated !== undefined;
   const prevReportsLabel = fax.previousReportsIndicated === true ? "Previous test reports: Yes — attached"
     : fax.previousReportsIndicated === false ? "Previous test reports: No — not indicated"
     : "Previous test reports";
 
+  // Checks
   const [checks, setChecks] = useState(() => ({
     urgency: fax.isUrgent !== undefined,
     patientMatch: fax.patientMatchStatus === "matched",
     noDuplicate: !hasDuplicates,
-    patientName: isNewPatient ? !!aiRaw.patientName : fax.patientMatchStatus === "matched",
-    patientDob: isNewPatient ? !!aiRaw.patientDob : fax.patientMatchStatus === "matched",
-    patientOhip: isNewPatient ? !!aiRaw.patientOhip : fax.patientMatchStatus === "matched",
+    patientName: fax.patientMatchStatus === "matched" || !!aiRaw.patientName,
+    patientDob: fax.patientMatchStatus === "matched" || !!aiRaw.patientDob,
+    patientOhip: fax.patientMatchStatus === "matched" || !!aiRaw.patientOhip,
     refPhysician: fax.physicianMatchStatus === "matched" || !!aiRaw.refPhysician,
     refBilling: !!aiRaw.refBilling,
     refContact: !!aiRaw.refContact,
@@ -253,12 +306,21 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
   }));
   const toggle = (key: keyof typeof checks) => setChecks(prev => ({ ...prev, [key]: !prev[key] }));
 
+  // Patient selection
   const selectPatient = (patId: string) => {
     const p = PATIENT_DIRECTORY.find(x => x.id === patId);
     if (!p) return;
     setSelectedPatientId(patId);
+    setManualNewPatient(false);
     setFields(prev => ({ ...prev, patientName: p.name, patientDob: p.dob, patientOhip: p.ohip }));
     setChecks(prev => ({ ...prev, patientMatch: true, patientName: true, patientDob: true, patientOhip: true }));
+    setPatientSearch("");
+  };
+
+  const selectNewPatient = () => {
+    setSelectedPatientId(null);
+    setManualNewPatient(true);
+    setChecks(prev => ({ ...prev, patientMatch: true }));
     setPatientSearch("");
   };
 
@@ -268,6 +330,7 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
     setSelectedPhysicianId(physId);
     setFields(prev => ({ ...prev, refPhysician: p.name, refBilling: p.billing }));
     setChecks(prev => ({ ...prev, refPhysician: true, refBilling: true }));
+    setUserVerifiedFields(prev => new Set([...prev, "refPhysician", "refBilling"]));
     setPhysicianSearch("");
   };
 
@@ -284,9 +347,12 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
     return [{ id: 'fax-mri-007', patientName: fax.patientName, description: 'Cardiac MRI — HCM evaluation (prior referral from Dr. Emma Foster)' }];
   }, [fax.duplicateReferralIds, fax.patientName]);
 
+  // Are patient detail fields editable? Only when no patient is matched from directory
+  const patientFieldsEditable = !matchedPatient;
+
   return (
     <div className="divide-y text-sm">
-      {/* Progress — compact */}
+      {/* Progress */}
       <div className="px-4 py-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Triage Progress</span>
@@ -300,16 +366,24 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
       {/* Urgency */}
       <section className="px-4 py-3">
         <SectionHeader icon={Zap} iconColor="text-red-500" title="Urgency" />
-        <div className={cn("flex items-center gap-2.5 py-2 px-2.5 rounded-md transition-all border",
+        <div className={cn("py-2 px-2.5 rounded-md transition-all border space-y-1.5",
           !urgency ? "bg-amber-50/60 border-amber-200/70" : "border-transparent hover:bg-accent/40"
         )} onMouseEnter={() => onHighlightChange?.(FIELD_REGIONS.urgency)} onMouseLeave={() => onHighlightChange?.(null)}>
-          <Checkbox checked={checks.urgency} onCheckedChange={() => toggle("urgency")} className="h-4 w-4" />
-          <div className="flex-1 space-y-1">
-            <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <Checkbox checked={checks.urgency} onCheckedChange={() => toggle("urgency")} className="h-4 w-4" />
+            <div className="flex-1 flex items-center justify-between">
               <span className="text-[12px] text-foreground/80">Urgency status</span>
-              <StatusTag status={urgency ? "ai_extracted" : "missing"} />
+              <StatusTag status={userVerifiedFields.has("urgency") ? "user_verified" : urgency ? "ai_extracted" : "missing"} />
             </div>
-            <Select value={urgency} onValueChange={(v) => { setUrgency(v as typeof urgency); if (v) setChecks(prev => ({ ...prev, urgency: true })); }}>
+          </div>
+          <div className="ml-6.5">
+            <Select value={urgency} onValueChange={(v) => {
+              setUrgency(v as typeof urgency);
+              setUserVerifiedFields(prev => new Set([...prev, "urgency"]));
+              if (v) setChecks(prev => ({ ...prev, urgency: true }));
+              if (v === "urgent" && !urgencyReason) setUrgencyReason("No reason for urgency found");
+              if (v === "routine") setUrgencyReason("");
+            }}>
               <SelectTrigger className="h-7 w-40 text-[12px] font-semibold" onClick={(e) => e.stopPropagation()}>
                 <SelectValue placeholder="Select..." />
               </SelectTrigger>
@@ -318,6 +392,17 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
                 <SelectItem value="routine">Routine</SelectItem>
               </SelectContent>
             </Select>
+            {/* Urgency reason — only visible when urgent */}
+            {urgency === "urgent" && (
+              <div className="mt-1.5" onMouseEnter={() => onHighlightChange?.(FIELD_REGIONS.urgencyReason)} onMouseLeave={() => onHighlightChange?.(null)}>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Reason</span>
+                <EditableValue
+                  value={urgencyReason}
+                  onChange={(v) => { setUrgencyReason(v); setUserVerifiedFields(prev => new Set([...prev, "urgencyReason"])); }}
+                  placeholder="Enter reason for urgency..."
+                />
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -326,25 +411,30 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
       <section className="px-4 py-3">
         <SectionHeader icon={User} iconColor="text-violet-600" title="Patient Information" />
         <div className="space-y-1">
-          <TriageItem
-            label={matchedPatient ? `Patient matched: ${matchedPatient.name}` : isNewPatient ? "Patient — not found in EMR" : "Patient match"}
-            checked={checks.patientMatch} onChange={() => toggle("patientMatch")}
-            status={matchedPatient ? "ai_match" : isNewPatient ? "new_entry" : "missing"}>
-            {!matchedPatient && (
-              <div className="ml-6.5 mt-1 space-y-1.5">
-                <SearchDropdown query={patientSearch} onQueryChange={setPatientSearch} results={patientSearchResults}
-                  onSelect={selectPatient} placeholder="Search patients by name or OHIP..." />
-                {isNewPatient && !selectedPatientId && (
-                  <div className="px-2.5 py-2 rounded-md bg-sky-50 border border-sky-200">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-800">
-                      <UserPlus className="h-3 w-3" />New patient chart created on approval
-                    </div>
-                    <p className="text-[10px] text-sky-700/80 mt-0.5 leading-relaxed">No match found. Verify info below, then approve.</p>
-                  </div>
-                )}
+          {/* Patient match — search bar, not checkbox */}
+          <div className={cn("py-2 px-2.5 rounded-md border transition-all",
+            !checks.patientMatch ? "bg-amber-50/60 border-amber-200/70" : "border-transparent hover:bg-accent/40"
+          )}>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[12px] text-foreground/80">
+                {matchedPatient ? `Patient: ${matchedPatient.name}` : isNewPatient ? "New patient (not in EMR)" : "Patient match"}
+              </span>
+              <StatusTag status={matchedPatient ? "ai_match" : isNewPatient ? "new_entry" : "missing"} />
+            </div>
+            <SearchDropdown
+              query={patientSearch} onQueryChange={setPatientSearch} results={patientSearchResults}
+              onSelect={selectPatient} placeholder="Search patients by name or OHIP..."
+              bottomAction={{ label: "Patient not in EMR — create new", icon: UserPlus, onSelect: selectNewPatient }}
+            />
+            {isNewPatient && (
+              <div className="mt-1.5 px-2.5 py-2 rounded-md bg-sky-50 border border-sky-200">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-800">
+                  <UserPlus className="h-3 w-3" />New patient chart created on approval
+                </div>
+                <p className="text-[10px] text-sky-700/80 mt-0.5 leading-relaxed">Verify the extracted info below, then approve.</p>
               </div>
             )}
-          </TriageItem>
+          </div>
 
           <TriageItem label="No duplicate MRI referral" checked={checks.noDuplicate} onChange={() => toggle("noDuplicate")} status={hasDuplicates ? "failed" : "ai_verified"}>
             {hasDuplicates && (
@@ -368,15 +458,19 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
             )}
           </TriageItem>
 
+          {/* Patient detail fields — editable only when no directory match */}
           <TriageItem label="Patient name" extractedValue={fields.patientName || undefined} checked={checks.patientName} onChange={() => toggle("patientName")}
-            status={matchedPatient ? "ai_match" : getFieldStatus("patientName", aiRaw.patientName)}
-            fieldKey="patientName" onHover={onHighlightChange} editable={!matchedPatient} onValueEdit={(v) => updateField("patientName", v)} editPlaceholder="Enter patient name" />
+            status={getFieldStatus("patientName", aiRaw.patientName)}
+            fieldKey={patientFieldsEditable ? "patientName" : undefined} onHover={patientFieldsEditable ? onHighlightChange : undefined}
+            editable={patientFieldsEditable} onValueEdit={(v) => updateField("patientName", v)} editPlaceholder="Enter patient name" disabled={!patientFieldsEditable} />
           <TriageItem label="Date of birth" extractedValue={fields.patientDob || undefined} checked={checks.patientDob} onChange={() => toggle("patientDob")}
-            status={matchedPatient ? "ai_match" : getFieldStatus("patientDob", aiRaw.patientDob)}
-            fieldKey="patientDob" onHover={onHighlightChange} editable={!matchedPatient} onValueEdit={(v) => updateField("patientDob", v)} editPlaceholder="MM/DD/YYYY" />
+            status={getFieldStatus("patientDob", aiRaw.patientDob)}
+            fieldKey={patientFieldsEditable ? "patientDob" : undefined} onHover={patientFieldsEditable ? onHighlightChange : undefined}
+            editable={patientFieldsEditable} onValueEdit={(v) => updateField("patientDob", v)} editPlaceholder="MM/DD/YYYY" disabled={!patientFieldsEditable} />
           <TriageItem label="OHIP number" extractedValue={fields.patientOhip || undefined} checked={checks.patientOhip} onChange={() => toggle("patientOhip")}
-            status={matchedPatient ? "ai_match" : getFieldStatus("patientOhip", aiRaw.patientOhip)}
-            fieldKey="patientOhip" onHover={onHighlightChange} editable={!matchedPatient} onValueEdit={(v) => updateField("patientOhip", v)} editPlaceholder="XXXX-XXX-XXX-XX" />
+            status={getFieldStatus("patientOhip", aiRaw.patientOhip)}
+            fieldKey={patientFieldsEditable ? "patientOhip" : undefined} onHover={patientFieldsEditable ? onHighlightChange : undefined}
+            editable={patientFieldsEditable} onValueEdit={(v) => updateField("patientOhip", v)} editPlaceholder="XXXX-XXX-XXX-XX" disabled={!patientFieldsEditable} />
         </div>
       </section>
 
@@ -405,11 +499,11 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
 
           <TriageItem label="Billing number" extractedValue={fields.refBilling || undefined} checked={checks.refBilling} onChange={() => toggle("refBilling")}
             status={matchedPhysician ? "ai_match" : getFieldStatus("refBilling", aiRaw.refBilling)}
-            fieldKey="refBilling" onHover={onHighlightChange} editable={!matchedPhysician} onValueEdit={(v) => updateField("refBilling", v)} editPlaceholder="Enter billing #" />
+            fieldKey="refBilling" onHover={onHighlightChange} editable={!matchedPhysician} onValueEdit={(v) => updateField("refBilling", v)} editPlaceholder="Enter billing #" disabled={!!matchedPhysician} />
           <TriageItem label="Phone/fax contact" extractedValue={fields.refContact || undefined} checked={checks.refContact} onChange={() => toggle("refContact")}
             status={getFieldStatus("refContact", aiRaw.refContact)}
             fieldKey="refContact" onHover={onHighlightChange} editable onValueEdit={(v) => updateField("refContact", v)} editPlaceholder="Enter phone/fax" />
-          <TriageItem label="Physician signature present" checked={checks.physicianSignature} onChange={() => toggle("physicianSignature")} status="missing" fieldKey="physicianSignature" onHover={onHighlightChange} />
+          <TriageItem label="Physician signature present" checked={checks.physicianSignature} onChange={() => toggle("physicianSignature")} status={userVerifiedFields.has("physicianSignature") ? "user_verified" : "missing"} fieldKey="physicianSignature" onHover={onHighlightChange} />
         </div>
       </section>
 
@@ -419,9 +513,9 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
         <div className="space-y-1">
           <TriageItem label="Area to scan" extractedValue={fields.areaScan || undefined} checked={checks.areaScan} onChange={() => toggle("areaScan")} status={getFieldStatus("areaScan", aiRaw.areaScan)} fieldKey="areaScan" onHover={onHighlightChange} editable onValueEdit={(v) => updateField("areaScan", v)} editPlaceholder="Enter area" />
           <TriageItem label="Clinical indication" extractedValue={fields.clinicalIndication || undefined} checked={checks.clinicalIndication} onChange={() => toggle("clinicalIndication")} status={getFieldStatus("clinicalIndication", aiRaw.clinicalIndication)} fieldKey="clinicalIndication" onHover={onHighlightChange} editable onValueEdit={(v) => updateField("clinicalIndication", v)} editPlaceholder="Enter indication" />
-          <TriageItem label="Reason for test documented" checked={checks.reasonForTest} onChange={() => toggle("reasonForTest")} status="missing" />
+          <TriageItem label="Reason for test documented" checked={checks.reasonForTest} onChange={() => toggle("reasonForTest")} status={userVerifiedFields.has("reasonForTest") ? "user_verified" : "missing"} />
           <TriageItem label={prevReportsLabel} checked={checks.previousReports} onChange={() => toggle("previousReports")} status={prevReportsIsExtracted ? "ai_extracted" : "missing"} fieldKey="previousReports" onHover={onHighlightChange} />
-          <TriageItem label="Screening section filled by physician" checked={checks.screeningSection} onChange={() => toggle("screeningSection")} status="missing" />
+          <TriageItem label="Screening section filled by physician" checked={checks.screeningSection} onChange={() => toggle("screeningSection")} status={userVerifiedFields.has("screeningSection") ? "user_verified" : "missing"} />
         </div>
       </section>
 
@@ -444,7 +538,7 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
         <div className="flex flex-col gap-2">
           <Button className="w-full h-9 bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-semibold rounded-md" disabled={!canApprove} onClick={onApprove}>
             <Check className="h-3.5 w-3.5 mr-1.5" />
-            {isNewPatient && !selectedPatientId ? "Approve — Create Patient & Send to Screening" : "Approve — Send to Screening"}
+            {isNewPatient ? "Approve — Create Patient & Send to Screening" : "Approve — Send to Screening"}
           </Button>
           <Button variant="outline" className="w-full h-9 border-amber-300 text-amber-700 hover:bg-amber-50 text-[12px] font-semibold rounded-md" onClick={onRequestInfo}>
             <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />Request Missing Info

@@ -552,7 +552,7 @@ The Blair MRI interface maps to the pipeline with the following primary views:
 | View | Purpose | Pipeline Stage |
 |------|---------|---------------|
 | **Fax Inbox** | Incoming fax stream — shows AI classification results, filters non-MRI faxes | Stage 0 |
-| **Triage Queue** | Referrals awaiting admin review — sortable by age, urgency, completeness | Stage 1 |
+| **Triage Queue** | Side-by-side PDF viewer + structured triage checklist. Patient/physician directory matching via search. Urgency dropdown with reason field. AI extraction tags (AI Extracted, AI Match, User Verified, Failed, Missing). Inline field editing with confirmation flash. Auto-eligibility gate. | Stage 1 |
 | **Screening Dashboard** | Active screening campaigns — outreach status, voice call results, completion rates | Stage 2 |
 | **Radiologist Queue** | Referrals awaiting protocol assignment — screening results, flagged items | Stage 3 |
 | **Scheduling Queue** | Referrals with assigned protocols awaiting booking — patient preferences, protocol requirements | Stage 4 |
@@ -562,7 +562,58 @@ The Blair MRI interface maps to the pipeline with the following primary views:
 
 ---
 
-## 10. Open Questions
+## 10. Triage Review Pane UX
+
+The triage review pane opens as a side-by-side dialog: MRI requisition PDF on the left (55% width), structured checklist on the right (45% width). The admin works through the checklist while referencing the original document.
+
+### Tag System
+
+Every field has a status tag indicating data provenance:
+- **AI Extracted** (green) — AI successfully read this field from the requisition
+- **AI Verified** (blue) — AI automatically verified this (e.g., duplicate check, patient directory match)
+- **AI Match** (indigo) — Field populated from a directory match (patient or physician)
+- **User Verified** (violet) — Human modified this field from its original AI-extracted state
+- **Failed** (red) — AI attempted extraction but failed
+- **Missing** (amber) — Field requires manual input; row highlighted with amber background
+- **New Entry** (blue) — Will create a new directory record on approval
+
+### Urgency Section
+
+- Dropdown selector: URGENT or Routine
+- When URGENT is selected, a "Reason" text field appears below
+- AI extracts the reason from the "Reason:" field in the top-right corner of the KMH requisition form
+- If URGENT is checked but no reason found, defaults to "No reason for urgency found"
+- Reason field disappears when set to Routine
+
+### Patient Information
+
+- **Patient match is a search bar** (not a checkbox) — search by name or OHIP number
+- Results show as a dropdown with patient details (DOB, OHIP)
+- Bottom of dropdown always shows "Patient not in EMR — create new" option
+- When a patient is matched from directory, demographic fields (name, DOB, OHIP) are locked/non-editable with "AI Match" tags
+- When patient is new (not in EMR), fields are editable from AI extraction with hover-to-highlight on the PDF
+- Blue info box explains "New patient chart created on approval"
+
+### Physician Information
+
+- Physician directory matching via search dropdown
+- When matched, billing number auto-populates from directory
+- When not found, amber info box: "Physician not in directory — new entry created on approval"
+- Phone/fax contact is always editable (may differ from directory)
+
+### Interaction Patterns
+
+- **Entire row is clickable** to toggle the checkbox
+- **Hover highlight on PDF**: hovering a field with a `fieldKey` highlights the corresponding region on the requisition PDF with a blue semi-transparent overlay
+- **Inline editing**: clicking an extracted value transforms it to an input field; Enter/blur confirms
+- **Confirmation flash**: when any field is modified and confirmed, the row briefly flashes violet to provide visual feedback
+- **Patient fields are conditionally locked**: when a patient is matched from the directory, name/DOB/OHIP are read-only to prevent errors
+- **Progress bar**: tracks completion (X/15 items), turns green at 100%
+- **Approve button disabled** until all 15 items are checked and eligibility passes
+
+---
+
+## 11. Open Questions
 
 1. **Triage automation opportunity:** Can AI assist with the triage bottleneck beyond data extraction? (e.g., automated completeness checking, auto-flagging duplicates, pre-populating patient matches)
 

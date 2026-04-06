@@ -107,6 +107,8 @@ export interface Fax {
   triageStatus?: TriageStatus;
   /** Urgency flag from requisition (e.g. "URGENT" stamped on form) */
   isUrgent?: boolean;
+  /** Reason for urgency (from "Reason:" field on requisition, top-right) */
+  urgencyReason?: string | null;
   /** Whether the referring MD checked "yes" for previous relevant tests */
   previousReportsIndicated?: boolean | null; // true = yes checked, false = no checked, null = not filled
   /** Duplicate MRI referrals found for this patient */
