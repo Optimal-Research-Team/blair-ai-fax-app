@@ -707,6 +707,12 @@ export const MOCK_FAXES: Fax[] = [
     duplicateReferralIds: [],
     physicianMatchStatus: 'matched' as const,
     physicianMatchId: 'prov-002',
+    triageCommunications: [],
+    triageTimeline: [
+      { id: 'tl-j1', type: 'received' as const, timestamp: receivedMri3, title: 'MRI requisition received', description: 'Fax received from Dr. Michael Patel — Cardiac MRI', actor: 'ai' as const },
+      { id: 'tl-j2', type: 'classified' as const, timestamp: hoursAgo(2.1), title: 'AI classified as MRI Requisition', description: 'Confidence: 94%', actor: 'ai' as const },
+      { id: 'tl-j3', type: 'triage_started' as const, timestamp: hoursAgo(2.0), title: 'Triage started', actor: 'ai' as const },
+    ],
     aiExtractedFields: { patientName: 'James Wilson', patientDob: '11/08/1965', patientOhip: '3456-789-012-EF', refPhysician: 'Dr. Michael Patel', refBilling: '56789', refContact: '(416) 555-0302', areaScan: 'Cardiac MRI', clinicalIndication: 'Acute myocarditis vs takotsubo, troponin 0.45, normal angiogram' },
   },
   {
@@ -748,6 +754,12 @@ export const MOCK_FAXES: Fax[] = [
     duplicateReferralIds: [],
     physicianMatchStatus: 'matched' as const,
     physicianMatchId: 'prov-003',
+    triageCommunications: [],
+    triageTimeline: [
+      { id: 'tl-p1', type: 'received' as const, timestamp: receivedMri4, title: 'MRI requisition received', description: 'Fax received from Dr. Anita Sharma — Cardiac MRI Aorta', actor: 'ai' as const },
+      { id: 'tl-p2', type: 'classified' as const, timestamp: hoursAgo(3.4), title: 'AI classified as MRI Requisition', description: 'Confidence: 97%', actor: 'ai' as const },
+      { id: 'tl-p3', type: 'triage_started' as const, timestamp: hoursAgo(3.3), title: 'Triage started', actor: 'ai' as const },
+    ],
     aiExtractedFields: { patientName: 'Patricia Lee', patientDob: '01/30/1980', patientOhip: '4567-890-123-GH', refPhysician: 'Dr. Anita Sharma', refBilling: '67890', refContact: '(905) 555-0402', areaScan: 'Cardiac MRI - Aorta', clinicalIndication: 'Bicuspid aortic valve, aortic root dilation 4.2cm, annual surveillance' },
   },
   {
@@ -791,6 +803,17 @@ export const MOCK_FAXES: Fax[] = [
     duplicateReferralIds: [],
     physicianMatchStatus: 'not-found' as const,
     aiExtractedFields: { patientName: 'David Thompson', patientDob: '09/12/1953', patientOhip: '5678-901-234-IJ', refPhysician: 'Dr. John Kim', refBilling: null, refContact: '(416) 555-0502', areaScan: 'Cardiac MRI with stress', clinicalIndication: 'Pre-CABG viability, triple vessel disease, EF 40%' },
+    triageCommunications: [
+      { id: 'comm-001', channel: 'fax', direction: 'outbound', status: 'sent', subject: 'Request for Missing Information — MRI Requisition', body: 'RE: David Thompson (DOB: 09/12/1953)\n\nWe are processing an MRI requisition for the above patient. To proceed, we require the following:\n\n• Referring physician billing number\n• Physician signature on requisition\n\nPlease fax the completed information to (905) 731-6419.\n\nThank you,\nKMH Cardiology Centres', recipientName: 'Dr. John Kim', missingItems: ['Billing number', 'Physician signature'], sentAt: hoursAgo(3), initiator: 'human' },
+      { id: 'comm-002', channel: 'email', direction: 'outbound', status: 'awaiting', subject: 'Follow-up: Missing MRI Requisition Information', body: 'Dear Dr. Kim,\n\nThis is a follow-up to our fax regarding David Thompson\'s MRI requisition. We are still awaiting your billing number and signed requisition.\n\nPlease reply to this email or fax the information to (905) 731-6419.\n\nBest regards,\nKMH Booking Team', recipientName: 'Dr. John Kim', missingItems: ['Billing number', 'Physician signature'], sentAt: hoursAgo(1), initiator: 'ai' },
+    ],
+    triageTimeline: [
+      { id: 'tl-001', type: 'received', timestamp: receivedMri5, title: 'MRI requisition received', description: 'Fax received from Dr. John Kim — Cardiac MRI with stress', actor: 'ai' },
+      { id: 'tl-002', type: 'classified', timestamp: hoursAgo(4.7), title: 'AI classified as MRI Requisition', description: 'Confidence: 93%', actor: 'ai' },
+      { id: 'tl-003', type: 'triage_started', timestamp: hoursAgo(4.5), title: 'Triage started', description: 'Assigned to admin queue', actor: 'ai' },
+      { id: 'tl-004', type: 'info_requested', timestamp: hoursAgo(3), title: 'Missing information requested', description: 'Fax sent to Dr. John Kim requesting billing number and physician signature', actor: 'human', actorName: 'Peter Phua' },
+      { id: 'tl-005', type: 'info_requested', timestamp: hoursAgo(1), title: 'Follow-up sent', description: 'Automated email follow-up to Dr. John Kim', actor: 'ai' },
+    ],
   },
   {
     id: 'fax-mri-006',
@@ -870,6 +893,13 @@ export const MOCK_FAXES: Fax[] = [
     duplicateReferralIds: [],
     physicianMatchStatus: 'matched' as const,
     physicianMatchId: 'prov-007',
+    triageCommunications: [],
+    triageTimeline: [
+      { id: 'tl-e1', type: 'received' as const, timestamp: receivedMri7, title: 'MRI requisition received', description: 'Fax received from Dr. Emma Foster — Cardiac MRI', actor: 'ai' as const },
+      { id: 'tl-e2', type: 'classified' as const, timestamp: hoursAgo(6.7), title: 'AI classified as MRI Requisition', description: 'Confidence: 96%', actor: 'ai' as const },
+      { id: 'tl-e3', type: 'triage_started' as const, timestamp: hoursAgo(6.5), title: 'Triage started', actor: 'ai' as const },
+      { id: 'tl-e4', type: 'approved' as const, timestamp: hoursAgo(5.5), title: 'Triage approved', description: 'Sent to patient screening', actor: 'human' as const, actorName: 'Peter Phua' },
+    ],
     aiExtractedFields: { patientName: 'Elizabeth Taylor', patientDob: '06/18/1975', patientOhip: '8901-234-567-OP', refPhysician: 'Dr. Emma Foster', refBilling: '90123', refContact: '(416) 555-0802', areaScan: 'Cardiac MRI', clinicalIndication: 'HCM evaluation, IVS 18mm, exertional dyspnea' },
   },
   {
@@ -914,6 +944,13 @@ export const MOCK_FAXES: Fax[] = [
     duplicateReferralIds: [],
     physicianMatchStatus: 'matched' as const,
     physicianMatchId: 'prov-008',
+    triageCommunications: [],
+    triageTimeline: [
+      { id: 'tl-m1', type: 'received' as const, timestamp: receivedMri8, title: 'MRI requisition received', description: 'Fax received from Dr. Amanda Ross — Cardiac MRI with gadolinium', actor: 'ai' as const },
+      { id: 'tl-m2', type: 'classified' as const, timestamp: hoursAgo(7.4), title: 'AI classified as MRI Requisition', description: 'Confidence: 94%', actor: 'ai' as const },
+      { id: 'tl-m3', type: 'triage_started' as const, timestamp: hoursAgo(7.2), title: 'Triage started', actor: 'ai' as const },
+      { id: 'tl-m4', type: 'approved' as const, timestamp: hoursAgo(6.0), title: 'Triage approved', description: 'Sent to patient screening', actor: 'human' as const, actorName: 'Peter Phua' },
+    ],
     aiExtractedFields: { patientName: 'Margaret White', patientDob: '08/25/1948', patientOhip: '9012-345-678-QR', refPhysician: 'Dr. Amanda Ross', refBilling: '01234', refContact: '(905) 555-0902', areaScan: 'Cardiac MRI with gadolinium', clinicalIndication: 'Recurrent pericarditis, r/o constrictive pericarditis' },
   },
 ]

@@ -9,8 +9,12 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { FaxViewerDialog } from "@/components/fax-viewer/fax-viewer-dialog";
 import { TriageChecklist, type HighlightRegion } from "@/components/mri-pipeline/triage-checklist";
+import { MRICommsThread } from "@/components/mri-pipeline/mri-comms-thread";
+import { MRIComposePanel } from "@/components/mri-pipeline/mri-compose-panel";
+import { MRITimeline } from "@/components/mri-pipeline/mri-timeline";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   ClipboardCheck,
   Phone,
@@ -20,6 +24,7 @@ import {
   ChevronRight,
   Clock,
   MessageSquare,
+  FileCheck,
 } from "lucide-react";
 
 type PipelineStage = "triage" | "screening" | "radiologist" | "scheduling" | "confirmation";
@@ -51,6 +56,8 @@ function MRIPipelineContent() {
   const [activeStage, setActiveStage] = useState<PipelineStage>(stageParam || "triage");
   const [selectedFaxId, setSelectedFaxId] = useState<string | null>(null);
   const [highlightRegion, setHighlightRegion] = useState<HighlightRegion | null>(null);
+  const [reviewTab, setReviewTab] = useState<"review" | "comms" | "timeline">("review");
+  const [composeOpen, setComposeOpen] = useState(false);
 
   const allFaxes = useAtomValue(allInboxItemsAtom);
 
@@ -227,16 +234,76 @@ function MRIPipelineContent() {
 
       {/* Triage Review Dialog */}
       {selectedFax && (
-        <FaxViewerDialog
-          fax={selectedFax}
-          open={!!selectedFaxId}
-          onOpenChange={(open) => {
-            if (!open) { setSelectedFaxId(null); setHighlightRegion(null); }
-          }}
-          triageMode={true}
-          triageChecklist={<TriageChecklist fax={selectedFax} onHighlightChange={setHighlightRegion} />}
-          highlightRegion={highlightRegion}
-        />
+        <>
+          <FaxViewerDialog
+            fax={selectedFax}
+            open={!!selectedFaxId}
+            onOpenChange={(open) => {
+              if (!open) { setSelectedFaxId(null); setHighlightRegion(null); setReviewTab("review"); }
+            }}
+            triageMode={true}
+            triageChecklist={
+              <div className="flex flex-col h-full">
+                <Tabs value={reviewTab} onValueChange={(v) => setReviewTab(v as typeof reviewTab)} className="flex flex-col h-full">
+                  <TabsList className="w-full rounded-none border-b bg-transparent h-auto p-0 shrink-0">
+                    <TabsTrigger value="review" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-2.5 text-[12px] gap-1.5">
+                      <FileCheck className="h-3.5 w-3.5" />Review
+                    </TabsTrigger>
+                    <TabsTrigger value="comms" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-2.5 text-[12px] gap-1.5 relative">
+                      <MessageSquare className="h-3.5 w-3.5" />Comms
+                      {(selectedFax.triageCommunications?.length ?? 0) > 0 && (
+                        <span className="absolute top-1.5 right-[calc(50%-24px)] h-1.5 w-1.5 bg-amber-500 rounded-full" />
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="timeline" className="flex-1 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent py-2.5 text-[12px] gap-1.5">
+                      <Clock className="h-3.5 w-3.5" />Timeline
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="review" className="flex-1 overflow-y-auto m-0">
+                    <TriageChecklist
+                      fax={selectedFax}
+                      onHighlightChange={setHighlightRegion}
+                      onRequestInfo={() => { setComposeOpen(true); }}
+                    />
+                  </TabsContent>
+                  <TabsContent value="comms" className="flex-1 overflow-hidden m-0">
+                    <MRICommsThread
+                      communications={selectedFax.triageCommunications || []}
+                      recipientName={selectedFax.senderName}
+                      recipientFax={selectedFax.senderFaxNumber}
+                      onCompose={() => setComposeOpen(true)}
+                    />
+                  </TabsContent>
+                  <TabsContent value="timeline" className="flex-1 overflow-y-auto m-0">
+                    <MRITimeline events={selectedFax.triageTimeline || []} />
+                  </TabsContent>
+                </Tabs>
+              </div>
+            }
+            highlightRegion={highlightRegion}
+          />
+          <MRIComposePanel
+            isOpen={composeOpen}
+            onClose={() => setComposeOpen(false)}
+            recipientName={selectedFax.senderName}
+            recipientFax={selectedFax.senderFaxNumber}
+            recipientEmail={undefined}
+            recipientPhone={undefined}
+            patientName={selectedFax.patientName || "Unknown Patient"}
+            missingFields={
+              Object.entries(selectedFax.aiExtractedFields || {})
+                .filter(([, v]) => !v)
+                .map(([k]) => k === "refBilling" ? "Billing number" : k)
+                .concat(["Physician signature"])
+            }
+            onSend={(data) => {
+              toast.success(`${data.channel === "fax" ? "Fax" : data.channel === "email" ? "Email" : "Phone note"} sent to ${selectedFax.senderName}`, {
+                description: data.scheduleFollowUp ? `Follow-up scheduled in ${data.followUpDays} days` : undefined,
+              });
+              setComposeOpen(false);
+            }}
+          />
+        </>
       )}
     </div>
   );

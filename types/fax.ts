@@ -115,6 +115,10 @@ export interface Fax {
   duplicateReferralIds?: string[];
   /** AI extraction results for triage fields */
   aiExtractedFields?: Record<string, string | null>;
+  /** Communications for this referral (triage stage) */
+  triageCommunications?: TriageCommunication[];
+  /** Timeline events for this referral */
+  triageTimeline?: TriageTimelineEvent[];
   /** Physician directory match result */
   physicianMatchStatus?: "matched" | "not-found";
   /** Matched physician directory ID */
@@ -131,4 +135,30 @@ export interface Fax {
   documentDate?: string;
   /** Confidence score for document date extraction (0-100) */
   documentDateConfidenceScore?: number;
+}
+
+/** Communication record for MRI triage stage */
+export interface TriageCommunication {
+  id: string;
+  channel: "fax" | "email" | "phone";
+  direction: "outbound" | "inbound";
+  status: "sent" | "awaiting" | "received" | "failed";
+  subject: string;
+  body: string;
+  recipientName: string;
+  missingItems?: string[];
+  sentAt: string;
+  receivedAt?: string;
+  initiator: "ai" | "human";
+}
+
+/** Timeline event for MRI triage */
+export interface TriageTimelineEvent {
+  id: string;
+  type: "received" | "classified" | "triage_started" | "info_requested" | "info_received" | "approved" | "rejected";
+  timestamp: string;
+  title: string;
+  description?: string;
+  actor: "ai" | "human";
+  actorName?: string;
 }
