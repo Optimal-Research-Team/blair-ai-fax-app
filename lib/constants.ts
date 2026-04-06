@@ -187,6 +187,30 @@ export const UNSORTED_REASON_COLORS = {
   duplicate: { bg: "bg-white", text: "text-slate-700", border: "border-slate-400" },
 } as const;
 
+// ─── Pipeline Status (MRI inbox classification) ────────────
+export const PIPELINE_STATUS_LABELS = {
+  needs_review: "Needs Review",
+  not_mri: "Not MRI",
+  routed: "Routed",
+} as const;
+
+export const PIPELINE_STATUS_COLORS = {
+  needs_review: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-300" },
+  not_mri: { bg: "bg-neutral-50", text: "text-neutral-500", border: "border-neutral-300" },
+  routed: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-300" },
+} as const;
+
+// ─── Document Category (MRI binary classification) ─────────
+export const DOCUMENT_CATEGORY_COLORS = {
+  "MRI Requisition": { bg: "bg-sky-50", text: "text-sky-700", border: "border-sky-300" },
+  "Other": { bg: "bg-neutral-50", text: "text-neutral-500", border: "border-neutral-300" },
+} as const;
+
+export const DOCUMENT_CATEGORY_LABELS = {
+  "MRI Requisition": "MRI Requisition",
+  "Other": "Other",
+} as const;
+
 // ─── Document Simulation (fax viewer placeholders) ───────────
 export const DOC_SIM_COLORS = {
   pageBg: "bg-muted",

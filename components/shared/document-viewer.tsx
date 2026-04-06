@@ -31,10 +31,19 @@ const PdfPage = dynamic(
 );
 
 const PDF_PAGE_WIDTH = 612;
+const PDF_PAGE_HEIGHT = 792;
 
 export interface DocumentMetadataField {
   label: string;
   value: ReactNode;
+}
+
+export interface HighlightRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  page: number;
 }
 
 export interface DocumentViewerProps {
@@ -47,6 +56,8 @@ export interface DocumentViewerProps {
   detectedDocType?: string;
   showSignature?: boolean;
   pdfUrl?: string;
+  /** Region to highlight on the PDF (coordinates in PDF points, 630x810 for KMH form) */
+  highlightRegion?: HighlightRegion | null;
 }
 
 export function DocumentViewer({
@@ -59,6 +70,7 @@ export function DocumentViewer({
   detectedDocType,
   showSignature = false,
   pdfUrl,
+  highlightRegion,
 }: DocumentViewerProps) {
   const [zoom, setZoom] = useState(100);
   const [rotation, setRotation] = useState(0);
@@ -248,7 +260,7 @@ export function DocumentViewer({
                 onLoadError={handlePdfError}
                 onSourceError={handlePdfError}
               >
-                <div className="shrink-0 overflow-hidden rounded-sm border bg-background shadow-lg">
+                <div className="shrink-0 overflow-hidden rounded-sm border bg-background shadow-lg relative">
                   <PdfPage
                     pageNumber={currentPageIndex + 1}
                     width={pageWidth}
@@ -259,6 +271,17 @@ export function DocumentViewer({
                     error={errorPlaceholder}
                     onRenderError={handlePdfError}
                   />
+                  {highlightRegion && highlightRegion.page === currentPageIndex && (
+                    <div
+                      className="absolute pointer-events-none border-2 border-sky-400 bg-sky-400/15 rounded-sm transition-all duration-150"
+                      style={{
+                        left: `${(highlightRegion.x / PDF_PAGE_WIDTH) * pageWidth}px`,
+                        top: `${(highlightRegion.y / PDF_PAGE_HEIGHT) * (pageWidth * (PDF_PAGE_HEIGHT / PDF_PAGE_WIDTH))}px`,
+                        width: `${(highlightRegion.width / PDF_PAGE_WIDTH) * pageWidth}px`,
+                        height: `${(highlightRegion.height / PDF_PAGE_HEIGHT) * (pageWidth * (PDF_PAGE_HEIGHT / PDF_PAGE_WIDTH))}px`,
+                      }}
+                    />
+                  )}
                 </div>
               </PdfDocument>
             )

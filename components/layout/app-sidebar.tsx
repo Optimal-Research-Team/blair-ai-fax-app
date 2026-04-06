@@ -106,12 +106,20 @@ const navGroups = [
   },
 ];
 
-const sidebarWorklistItems = [
-  { title: "All", href: "/needs-review", icon: ListTodo, countKey: "all" as const },
-  { title: "Unclassified", href: "/needs-review?view=unclassified", icon: FileQuestion, countKey: "unclassified" as const },
-  { title: "Referrals", href: "/needs-review?view=referral", icon: FileText, countKey: "referral" as const },
-  { title: "Junk", href: "/needs-review?view=junk", icon: Trash2, countKey: "junk" as const },
-  { title: "Filing Errors", href: "/needs-review?view=filing-error", icon: AlertCircle, countKey: "filing-error" as const },
+function StageNumber({ n }: { n: number }) {
+  return (
+    <span className="inline-flex items-center justify-center h-3.5 w-3.5 rounded-full bg-foreground/10 text-[8px] font-bold text-foreground/70 leading-none">
+      {n}
+    </span>
+  );
+}
+
+const sidebarPipelineItems = [
+  { title: "Admin Triage", href: "/mri-pipeline?stage=triage", number: 1 },
+  { title: "Patient Screening", href: "/mri-pipeline?stage=screening", number: 2 },
+  { title: "Radiologist Review", href: "/mri-pipeline?stage=radiologist", number: 3 },
+  { title: "Scheduling", href: "/mri-pipeline?stage=scheduling", number: 4 },
+  { title: "Pre-Appt Confirmation", href: "/mri-pipeline?stage=confirmation", number: 5 },
 ];
 
 const sidebarReferralSummaryItems = [
@@ -334,37 +342,27 @@ export function AppSidebar() {
                     <SidebarMenuItem>
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
-                          isActive={pathname.startsWith("/needs-review")}
-                          tooltip="Needs Review"
+                          isActive={pathname.startsWith("/mri-pipeline")}
+                          tooltip="MRI Pipeline"
                         >
                           <ListTodo className="h-4 w-4" />
-                          <span className="flex-1">Needs Review</span>
-                          <span className="font-mono text-[11px] text-muted-foreground tabular-nums mr-1 group-data-[state=open]/collapsible:hidden">
-                            {worklistCounts.all}
-                          </span>
+                          <span className="flex-1">MRI Pipeline</span>
                           <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
                         </SidebarMenuButton>
                       </CollapsibleTrigger>
                       <CollapsibleContent>
                         <SidebarMenuSub>
-                          {sidebarWorklistItems.map((item) => {
-                            const currentView = searchParams.get("view");
-                            const isActive = pathname === "/needs-review" && (
-                              (item.countKey === "all" && !currentView) ||
-                              (item.countKey !== "all" && currentView === item.countKey)
-                            );
-                            const Icon = item.icon;
-                            const count = worklistCounts[item.countKey];
+                          {sidebarPipelineItems.map((item) => {
+                            const currentStage = searchParams.get("stage");
+                            const itemStage = new URL(item.href, "http://x").searchParams.get("stage");
+                            const isActive = pathname === "/mri-pipeline" && currentStage === itemStage;
                             return (
                               <SidebarMenuSubItem key={item.href}>
                                 <SidebarMenuSubButton asChild isActive={isActive}>
-                                  <Link href={item.href} className="flex items-center justify-between">
+                                  <Link href={item.href}>
                                     <span className="flex items-center gap-2">
-                                      <Icon className="h-3 w-3" />
+                                      <StageNumber n={item.number} />
                                       {item.title}
-                                    </span>
-                                    <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                                      {count}
                                     </span>
                                   </Link>
                                 </SidebarMenuSubButton>

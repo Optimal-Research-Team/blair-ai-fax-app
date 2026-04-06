@@ -522,15 +522,12 @@ export function ReviewPanel({ fax, onSplitComplete, onClose, onDirtyChange }: Re
             faxStatus={fax.status}
           />
         </div>
-        <div className="flex items-center justify-between">
-          <PriorityBadge priority={fax.priority} />
-          {fax.lockedBy && (
-            <div className={`flex items-center gap-1 ${LOCK_COLORS.other} text-xs`}>
-              <Lock className="h-3 w-3" />
-              <span>Locked</span>
-            </div>
-          )}
-        </div>
+        {fax.lockedBy && (
+          <div className={`flex items-center gap-1 ${LOCK_COLORS.other} text-xs`}>
+            <Lock className="h-3 w-3" />
+            <span>Locked</span>
+          </div>
+        )}
       </div>
 
       <div ref={scrollContainerRef} className="flex-1 overflow-auto">
@@ -587,12 +584,6 @@ export function ReviewPanel({ fax, onSplitComplete, onClose, onDirtyChange }: Re
               <li className="flex gap-2">
                 <span className="text-amber-500">!</span>
                 <span>Patient not found in system</span>
-              </li>
-            )}
-            {fax.priority === "abnormal" && (
-              <li className="flex gap-2">
-                <span className="text-red-500">⚡</span>
-                <span>Flagged as <span className="font-medium text-red-600">Abnormal</span></span>
               </li>
             )}
             {fax.isReferral && (
@@ -825,132 +816,6 @@ export function ReviewPanel({ fax, onSplitComplete, onClose, onDirtyChange }: Re
           )}
         </section>
 
-        {/* Providers (multi-select) */}
-        <section data-field="provider" className="px-4 py-4 border-b">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <Stethoscope className="h-4 w-4 text-blue-600" />
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Providers
-              </h3>
-            </div>
-            {selectedProviderDetails.length > 0 && (
-              <span className="text-[10px] text-muted-foreground">{selectedProviderDetails.length} assigned</span>
-            )}
-          </div>
-
-          {/* Provider chips */}
-          {selectedProviderDetails.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {selectedProviderDetails.map((p) => (
-                <div
-                  key={p.id}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border bg-background text-xs"
-                >
-                  <Stethoscope className="h-3 w-3 text-blue-600" />
-                  <span className="font-medium">{p.name}</span>
-                  {p.title && <span className="text-muted-foreground">({p.title})</span>}
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "text-[9px] px-1 py-0 ml-0.5",
-                      p.source === 'ai'
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-violet-50 text-violet-700 border-violet-200"
-                    )}
-                  >
-                    {p.source === 'ai' ? (
-                      <><Zap className="h-2.5 w-2.5 mr-0.5" />AI</>
-                    ) : (
-                      <><User className="h-2.5 w-2.5 mr-0.5" />Manual</>
-                    )}
-                  </Badge>
-                  <button
-                    type="button"
-                    onClick={() => removeSelectedProvider(p.id)}
-                    className="text-muted-foreground hover:text-foreground ml-0.5"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {selectedProviderDetails.length === 0 && (
-            <p className="text-xs text-muted-foreground mb-3">No providers assigned yet. Search below to add one.</p>
-          )}
-
-          {/* Search to add provider */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={providerQuery}
-              onChange={(e) => { setProviderQuery(e.target.value); setProviderHighlightIndex(-1); }}
-              onFocus={() => { setProviderSearchFocused(true); setProviderHighlightIndex(-1); }}
-              onBlur={() => setTimeout(() => setProviderSearchFocused(false), 150)}
-              onKeyDown={(e) => {
-                if (!providerSearchFocused || filteredProviders.length === 0) return;
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  setProviderHighlightIndex((i) => Math.min(i + 1, filteredProviders.length - 1));
-                } else if (e.key === "ArrowUp") {
-                  e.preventDefault();
-                  setProviderHighlightIndex((i) => Math.max(i - 1, 0));
-                } else if (e.key === "Enter" && providerHighlightIndex >= 0 && providerHighlightIndex < filteredProviders.length) {
-                  e.preventDefault();
-                  const p = filteredProviders[providerHighlightIndex];
-                  setSelectedProviderIds((prev) => new Set([...prev, p.id]));
-                  setProviderQuery("");
-                  setProviderSearchFocused(false);
-                  setProviderHighlightIndex(-1);
-                  toast.success(`Added ${p.name}`);
-                } else if (e.key === "Escape") {
-                  setProviderSearchFocused(false);
-                  setProviderHighlightIndex(-1);
-                }
-              }}
-              placeholder="Add provider..."
-              className="h-8 text-xs pl-8"
-            />
-
-            {/* Dropdown results */}
-            {providerSearchFocused && (
-              <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto">
-                {filteredProviders.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-muted-foreground">No providers found</div>
-                ) : (
-                  filteredProviders.map((p, idx) => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      className={cn(
-                        "w-full px-3 py-2 text-left text-xs hover:bg-muted flex items-center gap-2",
-                        providerHighlightIndex === idx && "bg-accent"
-                      )}
-                      onMouseDown={() => {
-                        setSelectedProviderIds((prev) => new Set([...prev, p.id]));
-                        setProviderQuery("");
-                        toast.success(`Added ${p.name}`);
-                      }}
-                    >
-                      <Plus className="h-3 w-3 text-blue-600" />
-                      <div>
-                        <div className="font-medium">{p.name}</div>
-                        {p.title && (
-                          <div className="text-[10px] text-muted-foreground">
-                            {p.title}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-        </section>
 
         {/* SUMMARY - Description */}
         <section data-field="description" className="px-4 py-4 border-b">
@@ -985,49 +850,6 @@ export function ReviewPanel({ fax, onSplitComplete, onClose, onDirtyChange }: Re
           </div>
 
           <div className="space-y-3">
-            {/* Priority (Triage Status) - prominent toggle */}
-            <div data-field="priority" className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Priority</Label>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPriority("abnormal");
-                  }}
-                  className={cn(
-                    "flex-1 h-9 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition-all",
-                    priority === "abnormal"
-                      ? "border-red-600 bg-red-50 text-red-700"
-                      : "border-border bg-background text-muted-foreground hover:border-red-300 hover:text-red-600"
-                  )}
-                >
-                  <span className="flex items-center justify-center gap-1.5">
-                    <span className={cn("h-2 w-2 rounded-full", priority === "abnormal" ? "bg-red-600" : "bg-muted-foreground/30")} />
-                    Abnormal
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPriority("normal");
-                  }}
-                  className={cn(
-                    "flex-1 h-9 rounded-sm border-2 text-xs font-bold uppercase tracking-wider transition-all",
-                    priority === "normal"
-                      ? "border-emerald-400 bg-emerald-50 text-emerald-700"
-                      : "border-border bg-background text-muted-foreground hover:border-emerald-300 hover:text-emerald-600"
-                  )}
-                >
-                  <span className="flex items-center justify-center gap-1.5">
-                    <span className={cn("h-2 w-2 rounded-full", priority === "normal" ? "bg-emerald-500" : "bg-muted-foreground/30")} />
-                    Normal
-                  </span>
-                </button>
-              </div>
-            </div>
-
             <div data-field="document-date" className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Document Date (YYYY/MM/DD)</Label>
@@ -1183,7 +1005,7 @@ export function ReviewPanel({ fax, onSplitComplete, onClose, onDirtyChange }: Re
               ) : (
                 <>
                   <Bot className="h-3.5 w-3.5 mr-1" />
-                  Send to AI Processing
+                  Send to MRI Pipeline
                   <ArrowRight className="h-3.5 w-3.5 ml-1" />
                 </>
               )}

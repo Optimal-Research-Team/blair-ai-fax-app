@@ -3,10 +3,9 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import { InboxDataTable } from "@/components/inbox/inbox-data-table";
 import { columns } from "@/components/inbox/columns";
-import { useAtomValue, useAtom } from "jotai";
-import { allInboxItemsAtom, faxesAtom } from "@/atoms/inbox";
-import { viewedAutoFiledIdsAtom } from "@/atoms/viewed-auto-filed";
-import { ClassificationStage, ClassificationStatus, Fax } from "@/types";
+import { useAtomValue } from "jotai";
+import { allInboxItemsAtom } from "@/atoms/inbox";
+import { Fax } from "@/types";
 import { FaxViewerDialog } from "@/components/fax-viewer/fax-viewer-dialog";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useTableKeyboardNav } from "@/hooks/use-table-keyboard-nav";
@@ -25,21 +24,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown } from "lucide-react";
-import { CLASSIFICATION_STATUS_LABELS, STAGE_LABELS } from "@/lib/constants";
-import {
   X,
-  AlertTriangle,
   Eye,
-  CalendarCheck,
-  TrendingUp,
-  Wand2,
   Target,
+  Scan,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { tokenizedMatch } from "@/lib/search";
@@ -68,10 +57,11 @@ export default function InboxPage() {
 
   // ─── Unsorted tab state ──────────────────────────────
   const [search, setSearch] = useState("");
-  const [statusFilters, setStatusFilters] = useState<ClassificationStatus[]>([]);
-  const [stageFilters, setStageFilters] = useState<ClassificationStage[]>([]);
-  const [priorityFilter, setPriorityFilter] = useState<
-    "normal" | "abnormal" | "all"
+  const [pipelineStatusFilter, setPipelineStatusFilter] = useState<
+    "needs_review" | "not_mri" | "routed" | "all"
+  >("all");
+  const [categoryFilter, setCategoryFilter] = useState<
+    "MRI Requisition" | "Other" | "all"
   >("all");
   const [selectedFaxId, setSelectedFaxId] = useState<string | null>(null);
   const [isNavActive, setIsNavActive] = useState(false);
@@ -91,38 +81,22 @@ export default function InboxPage() {
   const debouncedSearch = useDebounce(search, 300);
   const hDebouncedSearch = useDebounce(hSearch, 300);
   const allFaxes = useAtomValue(allInboxItemsAtom);
-  const classifiedFaxes = useAtomValue(faxesAtom);
-
-  // Hydration guard for localStorage-backed store
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => setHydrated(true), []);
-
-  const [viewedIds, setViewedIds] = useAtom(viewedAutoFiledIdsAtom);
-  const markAsViewed = useCallback(
-    (id: string) =>
-      setViewedIds((prev) => (prev.includes(id) ? prev : [...prev, id])),
-    [setViewedIds]
-  );
 
   // ═══ All Faxes tab data ═════════════════════════════
   const stats = useMemo(() => {
-    const pendingReview = allFaxes.filter(
-      (f) => f.classificationStatus === ClassificationStatus.NeedsReview
-    ).length;
-    const urgentCount = allFaxes.filter(
-      (f) => f.priority === "abnormal"
-    ).length;
-    return { total: allFaxes.length, pendingReview, urgentCount };
+    const needsReview = allFaxes.filter((f) => f.pipelineStatus === "needs_review").length;
+    const mriCount = allFaxes.filter((f) => f.documentCategory === "MRI Requisition").length;
+    const routedCount = allFaxes.filter((f) => f.pipelineStatus === "routed").length;
+    const notMriCount = allFaxes.filter((f) => f.pipelineStatus === "not_mri").length;
+    return { total: allFaxes.length, needsReview, mriCount, routedCount, notMriCount };
   }, [allFaxes]);
 
   const filteredFaxes = useMemo(() => {
     let result = [...allFaxes];
-    if (statusFilters.length > 0)
-      result = result.filter((f) => statusFilters.includes(f.classificationStatus));
-    if (stageFilters.length > 0)
-      result = result.filter((f) => stageFilters.includes(f.classificationStage));
-    if (priorityFilter !== "all")
-      result = result.filter((f) => f.priority === priorityFilter);
+    if (pipelineStatusFilter !== "all")
+      result = result.filter((f) => f.pipelineStatus === pipelineStatusFilter);
+    if (categoryFilter !== "all")
+      result = result.filter((f) => f.documentCategory === categoryFilter);
     if (debouncedSearch) {
       result = result.filter((f) =>
         tokenizedMatch(
@@ -133,7 +107,7 @@ export default function InboxPage() {
       );
     }
     return result;
-  }, [allFaxes, debouncedSearch, statusFilters, stageFilters, priorityFilter]);
+  }, [allFaxes, debouncedSearch, pipelineStatusFilter, categoryFilter]);
 
   const handleKeyboardSelect = useCallback(
     (index: number) => {
@@ -159,69 +133,34 @@ export default function InboxPage() {
     []
   );
 
-  // ═══ History tab data ════════════════════════════════
-  const sortedFaxes = useMemo(
-    () =>
-      allFaxes
-        .filter(
-          (f) =>
-            f.classificationStage === ClassificationStage.ManuallyFiled ||
-            f.classificationStage === ClassificationStage.AutoFiled
-        )
-        .sort(
-          (a, b) =>
-            new Date(b.receivedAt).getTime() -
-            new Date(a.receivedAt).getTime()
-        ),
+  // ═══ Tab-specific data ═══════════════════════════════
+  // "Discarded" tab = not_mri faxes
+  const discardedFaxes = useMemo(
+    () => allFaxes.filter((f) => f.pipelineStatus === "not_mri")
+      .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()),
     [allFaxes]
   );
 
-  const newAutoSorted = useMemo(
-    () =>
-      hydrated
-        ? sortedFaxes.filter(
-            (f) => f.classificationStage === ClassificationStage.AutoFiled && !viewedIds.includes(f.id)
-          )
-        : [],
-    [sortedFaxes, viewedIds, hydrated]
+  // "Routed" tab = routed faxes (confirmed MRI requisitions sent to pipeline)
+  const routedFaxes = useMemo(
+    () => allFaxes.filter((f) => f.pipelineStatus === "routed")
+      .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime()),
+    [allFaxes]
   );
 
-  const regularHistory = useMemo(
-    () =>
-      hydrated
-        ? sortedFaxes.filter(
-            (f) =>
-              f.classificationStage === ClassificationStage.ManuallyFiled ||
-              (f.classificationStage === ClassificationStage.AutoFiled && viewedIds.includes(f.id))
-          )
-        : sortedFaxes,
-    [sortedFaxes, viewedIds, hydrated]
+  // Keep sortedFaxes for history filter compatibility
+  const sortedFaxes = useMemo(
+    () => [...discardedFaxes, ...routedFaxes],
+    [discardedFaxes, routedFaxes]
   );
 
-  // Manually sorted = manually filed faxes
-  const manuallySorted = useMemo(
-    () => sortedFaxes.filter((f) => f.classificationStage === ClassificationStage.ManuallyFiled),
-    [sortedFaxes]
-  );
-
-  const docTypes = useMemo(() => {
-    const types = new Set(sortedFaxes.map((f) => f.documentCategory));
-    return Array.from(types).sort();
-  }, [sortedFaxes]);
-
-  // KPI stats — counts classifications from real DB data using classifiedAt
+  // KPI stats
   const kpiStats = useMemo(() => {
-    const today = countClassifiedInRange(allFaxes, "today");
-    const thisWeek = countClassifiedInRange(allFaxes, "week");
-    const filedCount = classifiedFaxes.filter(
-      (f) => f.classificationStage === ClassificationStage.AutoFiled || f.classificationStage === ClassificationStage.ManuallyFiled
-    ).length;
-    const autoRate = classifiedFaxes.length > 0 ? Math.round((filedCount / classifiedFaxes.length) * 100) : 0;
     const avgConfidence = allFaxes.length > 0
       ? Math.round(allFaxes.reduce((sum, f) => sum + f.classificationConfidenceScore, 0) / allFaxes.length)
       : 0;
-    return { today, thisWeek, autoRate, avgConfidence };
-  }, [allFaxes, classifiedFaxes]);
+    return { avgConfidence };
+  }, [allFaxes]);
 
   const applyHistoryFilters = useCallback(
     (faxes: Fax[]) => {
@@ -248,40 +187,23 @@ export default function InboxPage() {
     [hDateRange, hCategoryFilter, hDebouncedSearch]
   );
 
-  const filteredNewAutoSorted = useMemo(
-    () => applyHistoryFilters(newAutoSorted),
-    [applyHistoryFilters, newAutoSorted]
-  );
-  const filteredRegularHistory = useMemo(
-    () => applyHistoryFilters(regularHistory),
-    [applyHistoryFilters, regularHistory]
-  );
-  const filteredManuallySorted = useMemo(
-    () => applyHistoryFilters(manuallySorted),
-    [applyHistoryFilters, manuallySorted]
-  );
-  const paginatedRegularHistory = useMemo(() => {
-    const start = (hCurrentPage - 1) * hPageSize;
-    return filteredRegularHistory.slice(start, start + hPageSize);
-  }, [filteredRegularHistory, hCurrentPage, hPageSize]);
-
-  // Keyboard nav for history
-  const allHistoryFaxes = useMemo(
-    () => [...filteredNewAutoSorted, ...paginatedRegularHistory],
-    [filteredNewAutoSorted, paginatedRegularHistory]
+  // Keyboard nav for history tabs
+  const activeHistoryFaxes = useMemo(
+    () => activeTab === "auto-sorted" ? applyHistoryFilters(discardedFaxes) : applyHistoryFilters(routedFaxes),
+    [activeTab, applyHistoryFilters, discardedFaxes, routedFaxes]
   );
   const hHandleKeyboardSelect = useCallback(
     (index: number) => {
-      const fax = allHistoryFaxes[index];
+      const fax = activeHistoryFaxes[index];
       if (fax) setHSelectedFaxId(fax.id);
     },
-    [allHistoryFaxes]
+    [activeHistoryFaxes]
   );
   const hDeactivateNav = useCallback(() => setHIsNavActive(false), []);
   const { highlightedIndex: hHighlightedIndex } = useTableKeyboardNav({
-    rowCount: allHistoryFaxes.length,
+    rowCount: activeHistoryFaxes.length,
     onSelect: hHandleKeyboardSelect,
-    enabled: hIsNavActive && activeTab === "auto-sorted",
+    enabled: hIsNavActive && activeTab !== "all",
     onDeactivate: hDeactivateNav,
   });
 
@@ -294,9 +216,8 @@ export default function InboxPage() {
 
   const handleUnsortedReset = () => {
     setSearch("");
-    setStatusFilters([]);
-    setStageFilters([]);
-    setPriorityFilter("all");
+    setPipelineStatusFilter("all");
+    setCategoryFilter("all");
   };
   const handleHistoryReset = () => {
     setHSearch("");
@@ -306,51 +227,13 @@ export default function InboxPage() {
   };
 
   const hasUnsortedFilters =
-    search || statusFilters.length > 0 || stageFilters.length > 0 || priorityFilter !== "all";
+    search || pipelineStatusFilter !== "all" || categoryFilter !== "all";
   const hasHistoryFilters =
     hSearch || hDateRange !== "all" || hCategoryFilter !== "all";
 
-  const toggleUrgentFilter = () => {
-    if (priorityFilter === "abnormal") {
-      setPriorityFilter("all");
-    } else {
-      setPriorityFilter("abnormal");
-    }
-  };
-
-  const toggleNeedsReviewFilter = () => {
-    if (statusFilters.includes(ClassificationStatus.NeedsReview)) {
-      setStatusFilters(statusFilters.filter((s) => s !== ClassificationStatus.NeedsReview));
-    } else {
-      setStatusFilters([...statusFilters, ClassificationStatus.NeedsReview]);
-    }
-  };
-
-  const toggleStatusFilter = (status: ClassificationStatus) => {
-    if (statusFilters.includes(status)) {
-      setStatusFilters(statusFilters.filter((s) => s !== status));
-    } else {
-      setStatusFilters([...statusFilters, status]);
-    }
-  };
-
-  const toggleStageFilter = (stage: ClassificationStage) => {
-    if (stageFilters.includes(stage)) {
-      setStageFilters(stageFilters.filter((s) => s !== stage));
-    } else {
-      setStageFilters([...stageFilters, stage]);
-    }
-  };
-
-  // Dialog close: mark auto-filed as viewed
+  // Dialog close
   const handleDialogClose = (open: boolean) => {
     if (!open) {
-      const faxId =
-        activeTab === "all" ? selectedFaxId : hSelectedFaxId;
-      if (faxId) {
-        const fax = allFaxes.find((f) => f.id === faxId);
-        if (fax?.classificationStage === ClassificationStage.AutoFiled) markAsViewed(faxId);
-      }
       setSelectedFaxId(null);
       setHSelectedFaxId(null);
     }
@@ -369,50 +252,50 @@ export default function InboxPage() {
       {/* KPI Stats Bar */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border border rounded-sm overflow-hidden">
         <div className="bg-card px-4 py-3 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-sm bg-emerald-50 flex items-center justify-center">
-            <CalendarCheck
-              className="h-4 w-4 text-emerald-600"
-              strokeWidth={1.5}
-            />
-          </div>
-          <div>
-            <p className="font-mono text-lg font-semibold tabular-nums leading-none">
-              {kpiStats.today || "—"}
-            </p>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
-              Sorted Today
-            </p>
-          </div>
-        </div>
-        <div className="bg-card px-4 py-3 flex items-center gap-3">
-          <div className="h-8 w-8 rounded-sm bg-sky-50 flex items-center justify-center">
-            <TrendingUp
-              className="h-4 w-4 text-sky-600"
-              strokeWidth={1.5}
-            />
-          </div>
-          <div>
-            <p className="font-mono text-lg font-semibold tabular-nums leading-none">
-              {kpiStats.thisWeek || "—"}
-            </p>
-            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
-              This Week
-            </p>
-          </div>
-        </div>
-        <div className="bg-card px-4 py-3 flex items-center gap-3">
           <div className="h-8 w-8 rounded-sm bg-amber-50 flex items-center justify-center">
-            <Wand2
+            <Eye
               className="h-4 w-4 text-amber-600"
               strokeWidth={1.5}
             />
           </div>
           <div>
             <p className="font-mono text-lg font-semibold tabular-nums leading-none">
-              {kpiStats.autoRate}%
+              {stats.needsReview || "—"}
             </p>
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
-              Auto-File Rate
+              Needs Review
+            </p>
+          </div>
+        </div>
+        <div className="bg-card px-4 py-3 flex items-center gap-3">
+          <div className="h-8 w-8 rounded-sm bg-sky-50 flex items-center justify-center">
+            <Scan
+              className="h-4 w-4 text-sky-600"
+              strokeWidth={1.5}
+            />
+          </div>
+          <div>
+            <p className="font-mono text-lg font-semibold tabular-nums leading-none">
+              {stats.mriCount || "—"}
+            </p>
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+              MRI Requisitions
+            </p>
+          </div>
+        </div>
+        <div className="bg-card px-4 py-3 flex items-center gap-3">
+          <div className="h-8 w-8 rounded-sm bg-emerald-50 flex items-center justify-center">
+            <ArrowRight
+              className="h-4 w-4 text-emerald-600"
+              strokeWidth={1.5}
+            />
+          </div>
+          <div>
+            <p className="font-mono text-lg font-semibold tabular-nums leading-none">
+              {stats.routedCount || "—"}
+            </p>
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
+              Routed
             </p>
           </div>
         </div>
@@ -441,8 +324,7 @@ export default function InboxPage() {
       >
         <TabsList variant="line">
           <TabsTrigger value="all" className="gap-1.5">
-            <span className="hidden sm:inline">Unsorted</span>
-            <span className="sm:hidden">Unsorted</span>
+            <span>All Faxes</span>
             {stats.total > 0 && (
               <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
                 {stats.total}
@@ -450,20 +332,18 @@ export default function InboxPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="auto-sorted" className="gap-1.5">
-            <span className="hidden sm:inline">Auto Sorted</span>
-            <span className="sm:hidden">Auto</span>
-            {sortedFaxes.filter(f => f.classificationStage === ClassificationStage.AutoFiled).length > 0 && (
+            <span>Discarded</span>
+            {discardedFaxes.length > 0 && (
               <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                {sortedFaxes.filter(f => f.classificationStage === ClassificationStage.AutoFiled).length}
+                {discardedFaxes.length}
               </span>
             )}
           </TabsTrigger>
           <TabsTrigger value="manual-sorted" className="gap-1.5">
-            <span className="hidden sm:inline">Manually Sorted</span>
-            <span className="sm:hidden">Manual</span>
-            {manuallySorted.length > 0 && (
+            <span>Routed</span>
+            {routedFaxes.length > 0 && (
               <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                {manuallySorted.length}
+                {routedFaxes.length}
               </span>
             )}
           </TabsTrigger>
@@ -481,105 +361,55 @@ export default function InboxPage() {
             />
 
             <div className="flex items-center gap-2">
-              {stats.urgentCount > 0 && (
+              {stats.needsReview > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={toggleUrgentFilter}
+                  onClick={() => setPipelineStatusFilter(pipelineStatusFilter === "needs_review" ? "all" : "needs_review")}
                   className={cn(
                     "h-8 font-mono text-[11px] font-bold uppercase tracking-wider rounded-sm",
-                    priorityFilter === "abnormal"
-                      ? "border-red-600 bg-background text-red-700 hover:bg-muted/50"
-                      : "border-border text-red-700 hover:bg-muted/50"
+                    pipelineStatusFilter === "needs_review"
+                      ? "border-amber-500 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                      : "border-border text-amber-700 hover:bg-muted/50"
                   )}
                 >
-                  <AlertTriangle className="h-3 w-3 mr-1" strokeWidth={1.5} />
-                  {stats.urgentCount} ABNORMAL
+                  <Eye className="h-3 w-3 mr-1" strokeWidth={1.5} />
+                  {stats.needsReview} Review
                 </Button>
               )}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={toggleNeedsReviewFilter}
+                onClick={() => setCategoryFilter(categoryFilter === "MRI Requisition" ? "all" : "MRI Requisition")}
                 className={cn(
                   "h-8 font-mono text-[11px] font-bold uppercase tracking-wider rounded-sm",
-                  statusFilters.includes(ClassificationStatus.NeedsReview)
-                    ? "border-foreground bg-background text-foreground hover:bg-muted/50"
-                    : "border-border text-muted-foreground hover:bg-muted/50"
+                  categoryFilter === "MRI Requisition"
+                    ? "border-sky-500 bg-sky-50 text-sky-700 hover:bg-sky-100"
+                    : "border-border text-sky-700 hover:bg-muted/50"
                 )}
               >
-                <Eye className="h-3 w-3 mr-1" strokeWidth={1.5} />
-                {stats.pendingReview} Review
+                <Scan className="h-3 w-3 mr-1" strokeWidth={1.5} />
+                {stats.mriCount} MRI
               </Button>
             </div>
 
             <div className="hidden md:block h-6 w-px bg-border" />
 
-            {/* Status filter (DB enum: classification_status_type) */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 text-xs w-[160px] justify-between">
-                  {statusFilters.length === 0
-                    ? "All Statuses"
-                    : statusFilters.length === 1
-                    ? CLASSIFICATION_STATUS_LABELS[statusFilters[0]]
-                    : `${statusFilters.length} selected`}
-                  <ChevronDown className="h-3 w-3 ml-1 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-[200px] p-2">
-                <div className="space-y-1">
-                  {(Object.entries(CLASSIFICATION_STATUS_LABELS) as [ClassificationStatus, string][]).map(
-                    ([value, label]) => (
-                      <label
-                        key={value}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-muted cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={statusFilters.includes(value)}
-                          onCheckedChange={() => toggleStatusFilter(value)}
-                          className="h-3.5 w-3.5"
-                        />
-                        <span className="text-xs">{label}</span>
-                      </label>
-                    )
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-
-            {/* Stage filter (DB enum: classification_stage) */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 text-xs w-[140px] justify-between">
-                  {stageFilters.length === 0
-                    ? "All Stages"
-                    : stageFilters.length === 1
-                    ? STAGE_LABELS[stageFilters[0]]
-                    : `${stageFilters.length} selected`}
-                  <ChevronDown className="h-3 w-3 ml-1 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-[180px] p-2">
-                <div className="space-y-1">
-                  {(Object.entries(STAGE_LABELS) as [ClassificationStage, string][]).map(
-                    ([value, label]) => (
-                      <label
-                        key={value}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-muted cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={stageFilters.includes(value)}
-                          onCheckedChange={() => toggleStageFilter(value)}
-                          className="h-3.5 w-3.5"
-                        />
-                        <span className="text-xs">{label}</span>
-                      </label>
-                    )
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
+            {/* Pipeline Status filter */}
+            <Select
+              value={pipelineStatusFilter}
+              onValueChange={(v) => setPipelineStatusFilter(v as typeof pipelineStatusFilter)}
+            >
+              <SelectTrigger className="w-[150px] h-8 text-xs">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="needs_review">Needs Review</SelectItem>
+                <SelectItem value="not_mri">Not MRI</SelectItem>
+                <SelectItem value="routed">Routed</SelectItem>
+              </SelectContent>
+            </Select>
 
             {hasUnsortedFilters && (
               <Button
@@ -678,12 +508,9 @@ export default function InboxPage() {
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {docTypes.map((dt) => (
-                  <SelectItem key={dt} value={dt}>
-                    {dt}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="MRI Requisition">MRI Requisition</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
 
@@ -700,9 +527,9 @@ export default function InboxPage() {
             )}
 
             <span className="text-xs text-muted-foreground font-mono tabular-nums ml-auto">
-              {applyHistoryFilters(sortedFaxes.filter(f => f.classificationStage === ClassificationStage.AutoFiled)).length}{" "}
+              {applyHistoryFilters(discardedFaxes).length}{" "}
               result
-              {applyHistoryFilters(sortedFaxes.filter(f => f.classificationStage === ClassificationStage.AutoFiled)).length !== 1
+              {applyHistoryFilters(discardedFaxes).length !== 1
                 ? "s"
                 : ""}
             </span>
@@ -712,7 +539,7 @@ export default function InboxPage() {
           <div className="hidden md:block">
             <InboxDataTable
               columns={columns}
-              data={applyHistoryFilters(sortedFaxes.filter(f => f.classificationStage === ClassificationStage.AutoFiled)).slice(
+              data={applyHistoryFilters(discardedFaxes).slice(
                 (hCurrentPage - 1) * hPageSize,
                 hCurrentPage * hPageSize
               )}
@@ -726,7 +553,7 @@ export default function InboxPage() {
 
           {/* Mobile: card list */}
           <div className="md:hidden space-y-2">
-            {applyHistoryFilters(sortedFaxes.filter(f => f.classificationStage === ClassificationStage.AutoFiled)).slice(
+            {applyHistoryFilters(discardedFaxes).slice(
               (hCurrentPage - 1) * hPageSize,
               hCurrentPage * hPageSize
             ).map((fax) => (
@@ -739,7 +566,7 @@ export default function InboxPage() {
           </div>
 
           <TablePagination
-            totalItems={applyHistoryFilters(sortedFaxes.filter(f => f.classificationStage === ClassificationStage.AutoFiled)).length}
+            totalItems={applyHistoryFilters(discardedFaxes).length}
             pageSize={hPageSize}
             currentPage={hCurrentPage}
             onPageChange={setHCurrentPage}
@@ -793,12 +620,9 @@ export default function InboxPage() {
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {docTypes.map((dt) => (
-                  <SelectItem key={dt} value={dt}>
-                    {dt}
-                  </SelectItem>
-                ))}
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="MRI Requisition">MRI Requisition</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
               </SelectContent>
             </Select>
 
@@ -815,8 +639,8 @@ export default function InboxPage() {
             )}
 
             <span className="text-xs text-muted-foreground font-mono tabular-nums ml-auto">
-              {filteredManuallySorted.length} result
-              {filteredManuallySorted.length !== 1 ? "s" : ""}
+              {applyHistoryFilters(routedFaxes).length} result
+              {applyHistoryFilters(routedFaxes).length !== 1 ? "s" : ""}
             </span>
           </div>
 
@@ -824,7 +648,7 @@ export default function InboxPage() {
           <div className="hidden md:block">
             <InboxDataTable
               columns={columns}
-              data={filteredManuallySorted.slice(
+              data={applyHistoryFilters(routedFaxes).slice(
                 (hCurrentPage - 1) * hPageSize,
                 hCurrentPage * hPageSize
               )}
@@ -838,7 +662,7 @@ export default function InboxPage() {
 
           {/* Mobile: card list */}
           <div className="md:hidden space-y-2">
-            {filteredManuallySorted.slice(
+            {applyHistoryFilters(routedFaxes).slice(
               (hCurrentPage - 1) * hPageSize,
               hCurrentPage * hPageSize
             ).map((fax) => (
@@ -851,7 +675,7 @@ export default function InboxPage() {
           </div>
 
           <TablePagination
-            totalItems={filteredManuallySorted.length}
+            totalItems={applyHistoryFilters(routedFaxes).length}
             pageSize={hPageSize}
             currentPage={hCurrentPage}
             onPageChange={setHCurrentPage}

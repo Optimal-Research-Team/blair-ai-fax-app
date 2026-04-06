@@ -1,4 +1,10 @@
 export type FaxStatus = "auto-filed" | "pending-review" | "in-progress" | "completed" | "classified" | "manually-classified" | "failed";
+
+/** MRI pipeline status for the fax inbox (Stage 0 classification) */
+export type PipelineStatus = "needs_review" | "not_mri" | "routed";
+
+/** Triage status for Stage 1 of the MRI pipeline */
+export type TriageStatus = "in_triage" | "pending_physician_info" | "patient_matching" | "duplicate_detected" | "triage_success" | "referral_failed";
 export type Priority = "normal" | "abnormal";
 export type PatientMatchStatus = "matched" | "not-found" | "multiple-matches" | "pending";
 
@@ -95,6 +101,22 @@ export interface Fax {
   pdfUrl?: string;
   /** Selected provider inbox for Cerebrum routing */
   providerInbox?: string;
+  /** MRI pipeline status (Stage 0 inbox classification) */
+  pipelineStatus: PipelineStatus;
+  /** Triage status (Stage 1, only for routed MRI requisitions) */
+  triageStatus?: TriageStatus;
+  /** Urgency flag from requisition (e.g. "URGENT" stamped on form) */
+  isUrgent?: boolean;
+  /** Whether the referring MD checked "yes" for previous relevant tests */
+  previousReportsIndicated?: boolean | null; // true = yes checked, false = no checked, null = not filled
+  /** Duplicate MRI referrals found for this patient */
+  duplicateReferralIds?: string[];
+  /** AI extraction results for triage fields */
+  aiExtractedFields?: Record<string, string | null>;
+  /** Physician directory match result */
+  physicianMatchStatus?: "matched" | "not-found";
+  /** Matched physician directory ID */
+  physicianMatchId?: string;
   /** Raw AI classification metadata JSON */
   metadata?: Record<string, unknown> | null;
   /** The linked submission ID (from processing job) */

@@ -371,7 +371,7 @@ export async function fetchOrganizationsWithCategories(): Promise<ActionResult<O
       data: [{
         id: 'org-kmh',
         name: 'KMH Cardiology',
-        categories: ['Cardiology Referral', 'Lab Results', 'ECG Report', 'Echo Report', 'Discharge Summary', 'Stress Test', 'Holter Report', 'MRI Report', 'MRI Requisition', 'CT Scan Report', 'Nuclear Imaging', 'Consultation Report', 'Insurance / Admin', 'Medication List', 'BNP Results', 'Troponin Results', 'Angiography Report', 'Device Interrogation'],
+        categories: ['MRI Requisition', 'Other'],
       }],
     }
   }

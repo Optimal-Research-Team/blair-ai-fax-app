@@ -1,19 +1,15 @@
 "use client";
 
 import { ColumnDef } from "@tanstack/react-table";
-import { ClassificationStage, Fax } from "@/types";
-import { PriorityBadge } from "./priority-badge";
-import { StatusBadge } from "./status-badge";
-import { StageBadge } from "./stage-badge";
+import { Fax } from "@/types";
 import { PatientMatchBadge } from "./patient-match-badge";
-import { UnsortedReasonBadge } from "./unsorted-reason-badge";
-import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
-import { LockIndicator } from "./lock-indicator";
-import { computeUnsortedReasons } from "@/lib/fax-utils";
+import { PipelineStatusBadge } from "./pipeline-status-badge";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { formatPhone } from "@/lib/format";
 import { FormattedValue } from "@/components/shared/formatted-value";
+import { DOCUMENT_CATEGORY_COLORS } from "@/lib/constants";
 
 function Shimmer({ className }: { className?: string }) {
   return (
@@ -46,17 +42,6 @@ export const columns: ColumnDef<Fax>[] = [
       </div>
     ),
     size: 145,
-  },
-  {
-    accessorKey: "priority",
-    header: "Priority",
-    cell: ({ row }) => {
-      const ps = row.original.processingState;
-      if (ps) return <Shimmer className="w-16" />;
-      return <PriorityBadge priority={row.original.priority} />;
-    },
-    filterFn: (row, id, value) => value.includes(row.getValue(id)),
-    size: 100,
   },
   {
     accessorKey: "senderName",
@@ -99,19 +84,16 @@ export const columns: ColumnDef<Fax>[] = [
           </div>
         );
       }
-      const isFailed = row.original.status === "failed";
-      const isManualCategory = row.original.manuallyEditedFields?.includes("document_category");
+      const category = row.original.documentCategory as keyof typeof DOCUMENT_CATEGORY_COLORS;
+      const colors = DOCUMENT_CATEGORY_COLORS[category] ?? DOCUMENT_CATEGORY_COLORS["Other"];
       return (
-        <div className="text-xs min-w-0">
-          <span className="font-medium truncate block">{row.original.documentCategory}</span>
-          {!isFailed && isManualCategory && (
-            <span className="text-[10px] text-muted-foreground">Manually Classified</span>
-          )}
-        </div>
+        <span className={cn("inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border", colors.bg, colors.text, colors.border)}>
+          {category === "MRI Requisition" ? "MRI Req" : "Other"}
+        </span>
       );
     },
     filterFn: (row, id, value) => value.includes(row.getValue(id)),
-    size: 120,
+    size: 100,
   },
   {
     accessorKey: "patientName",
@@ -137,39 +119,7 @@ export const columns: ColumnDef<Fax>[] = [
     size: 130,
   },
   {
-    accessorKey: "providers",
-    header: "Providers",
-    cell: ({ row }) => {
-      const ps = row.original.processingState;
-      if (ps) {
-        return <Shimmer className="w-24" />;
-      }
-      const providers = row.original.providers;
-      if (!providers || providers.length === 0) {
-        return <span className="inline-flex items-center gap-1.5 rounded-sm border border-gray-300 bg-white px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-500">Not Matched</span>;
-      }
-      const first = providers[0];
-      const rest = providers.length - 1;
-      return (
-        <div className="flex items-center gap-1 text-xs min-w-0">
-          <span className="font-medium truncate">{first.providerName}</span>
-          {first.source === "ai" ? (
-            <span className="inline-flex items-center rounded px-1 py-0 text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200">AI</span>
-          ) : (
-            <span className="inline-flex items-center rounded px-1 py-0 text-[9px] bg-violet-50 text-violet-700 border border-violet-200">Manual</span>
-          )}
-          {rest > 0 && (
-            <span className="inline-flex items-center rounded-full px-1.5 py-0 text-[9px] bg-muted text-muted-foreground border">
-              +{rest}
-            </span>
-          )}
-        </div>
-      );
-    },
-    size: 120,
-  },
-  {
-    accessorKey: "status",
+    accessorKey: "pipelineStatus",
     header: "Status",
     cell: ({ row }) => {
       const fax = row.original;
@@ -178,47 +128,11 @@ export const columns: ColumnDef<Fax>[] = [
       if (ps === "receiving") return <ProcessingTag label="Receiving" />;
       if (ps === "classifying") return <ProcessingTag label="Classifying" />;
       if (ps === "matching") return <ProcessingTag label="Matching" />;
-      if (ps === "filing") return <ProcessingTag label="Filing" />;
 
-      const isUnsorted =
-        fax.status !== "completed" && fax.status !== "auto-filed";
-      const reasons = isUnsorted ? computeUnsortedReasons(fax) : [];
-      return (
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-1.5">
-            <StatusBadge status={fax.status} />
-            <LockIndicator documentId={fax.id} />
-          </div>
-          {reasons.length > 0 && (
-            <div className="flex flex-wrap gap-0.5">
-              {reasons.map((r) => (
-                <UnsortedReasonBadge key={r} reason={r} />
-              ))}
-            </div>
-          )}
-          {fax.filingError && (
-            <span className="inline-flex items-center gap-0.5 rounded-sm border border-red-300 bg-red-50 px-1 py-px text-[9px] font-medium leading-tight text-red-700">
-              <AlertCircle className="h-2.5 w-2.5 shrink-0" />
-              Filing Error
-            </span>
-          )}
-        </div>
-      );
+      return <PipelineStatusBadge status={fax.pipelineStatus} />;
     },
     filterFn: (row, id, value) => value.includes(row.getValue(id)),
-    size: 190,
-  },
-  {
-    accessorKey: "classificationStage",
-    header: "Stage",
-    cell: ({ row }) => {
-      if (row.original.processingState) {
-        return <Shimmer className="w-16" />;
-      }
-      return <StageBadge stage={row.original.classificationStage} />;
-    },
-    filterFn: (row, id, value) => value.includes(row.getValue(id)),
-    size: 110,
+    size: 130,
   },
   {
     id: "actions",

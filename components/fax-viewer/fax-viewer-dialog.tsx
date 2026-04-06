@@ -77,12 +77,20 @@ import {
 } from "lucide-react";
 
 interface FaxViewerDialogProps {
-  faxId: string | null;
+  faxId?: string | null;
+  /** Pass a fax object directly (skips atom lookup) */
+  fax?: Fax | null;
   referralId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Called when a split is completed — parent should close dialog and highlight results */
   onSplitComplete?: (originalFaxId: string, newFaxIds: string[]) => void;
+  /** When true, replaces the right panel with triageChecklist content */
+  triageMode?: boolean;
+  /** Custom content for the right panel in triage mode */
+  triageChecklist?: React.ReactNode;
+  /** Highlight region to show on the PDF (for triage field hover) */
+  highlightRegion?: { x: number; y: number; width: number; height: number; page: number } | null;
 }
 
 const STATUS_STEPS = [
@@ -172,10 +180,14 @@ function buildSyntheticReferral(referralId: string, fax: Fax): Referral {
 
 export function FaxViewerDialog({
   faxId,
+  fax: faxProp,
   referralId,
   open,
   onOpenChange,
   onSplitComplete,
+  triageMode,
+  triageChecklist,
+  highlightRegion: highlightRegionProp,
 }: FaxViewerDialogProps) {
   // ── Data lookup ──
   const faxes = useAtomValue(faxesAtom);
@@ -184,7 +196,7 @@ export function FaxViewerDialog({
   const updateFax = useSetAtom(updateFaxAtom);
   const addFax = useSetAtom(addFaxAtom);
   const upsertReferral = useSetAtom(upsertReferralAtom);
-  const fax = faxId ? faxes.find((f) => f.id === faxId) : null;
+  const fax = faxProp ?? (faxId ? faxes.find((f) => f.id === faxId) : null);
   const existingReferral = referralId ? allReferrals.find((r) => r.id === referralId) : null;
   // Build synthetic referral from fax data when no existing referral exists
   const referral = useMemo(() => {
@@ -192,7 +204,7 @@ export function FaxViewerDialog({
     if (referralId && fax) return buildSyntheticReferral(referralId, fax);
     return null;
   }, [existingReferral, referralId, fax]);
-  const isReferralMode = !!referral;
+  const isReferralMode = !triageMode && !!referral;
 
   // ── Unsaved changes guard ──
   const [reviewDirty, setReviewDirty] = useState(false);
@@ -756,7 +768,6 @@ export function FaxViewerDialog({
             <div className="flex items-center justify-between border-b px-3 md:px-4 py-2 bg-card shrink-0">
               <div className="flex items-center gap-2 md:gap-3 min-w-0">
                 <span className="text-sm font-medium truncate">{fax!.senderName}</span>
-                <PriorityBadge priority={fax!.priority} />
                 <div className="hidden sm:block shrink-0">
                   <SlaTimerCell
                     deadline={fax!.slaDeadline}
@@ -880,7 +891,7 @@ export function FaxViewerDialog({
             {/* Resizable: Document viewer + Right panel */}
             {/* Non-referral: 2/3-1/3 layout, Referral: 50-50 */}
             <ResizablePanelGroup orientation="horizontal" className="flex-1">
-              <ResizablePanel defaultSize={isReferralMode ? 50 : 66} minSize={30}>
+              <ResizablePanel defaultSize={isReferralMode ? 50 : (triageMode ? 55 : 66)} minSize={30}>
                 {isReferralMode ? (
                   <div className="flex flex-col h-full">
                     <DocumentViewer
@@ -905,11 +916,12 @@ export function FaxViewerDialog({
                     currentPage={fax!.pages[currentPageIndex]}
                     onPageChange={setCurrentPageIndex}
                     currentPageIndex={currentPageIndex}
+                    highlightRegion={highlightRegionProp}
                   />
                 )}
               </ResizablePanel>
               <ResizableHandle withHandle />
-              <ResizablePanel defaultSize={isReferralMode ? 50 : 34} minSize={25}>
+              <ResizablePanel defaultSize={isReferralMode ? 50 : (triageMode ? 45 : 34)} minSize={25}>
                 {isReferralMode ? (
                   <div className="bg-background flex flex-col overflow-hidden h-full">
                     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="flex flex-col h-full">
@@ -1428,6 +1440,8 @@ export function FaxViewerDialog({
                       </TabsContent>
                     </Tabs>
                   </div>
+                ) : triageMode && triageChecklist ? (
+                  <div className="h-full overflow-auto">{triageChecklist}</div>
                 ) : (
                   <ReviewPanel
                     fax={fax!}
@@ -1478,7 +1492,9 @@ export function FaxViewerDialog({
                 />
               )
             ) : (
-              fax ? (
+              triageMode && triageChecklist ? (
+                <div className="h-full overflow-auto">{triageChecklist}</div>
+              ) : fax ? (
                 <ReviewPanel
                   fax={fax}
                   onClose={() => { setReviewDirty(false); onOpenChange(false); }}

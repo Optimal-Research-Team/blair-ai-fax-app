@@ -1,7 +1,7 @@
 "use client";
 
 import { Fax, FaxPage } from "@/types";
-import { DocumentViewer } from "@/components/shared/document-viewer";
+import { DocumentViewer, type HighlightRegion } from "@/components/shared/document-viewer";
 import { FormattedValue } from "@/components/shared/formatted-value";
 import { formatPhone } from "@/lib/format";
 
@@ -10,6 +10,7 @@ interface FaxPageViewerProps {
   currentPage: FaxPage;
   onPageChange: (pageIndex: number) => void;
   currentPageIndex: number;
+  highlightRegion?: HighlightRegion | null;
 }
 
 export function FaxPageViewer({
@@ -17,6 +18,7 @@ export function FaxPageViewer({
   currentPage,
   onPageChange,
   currentPageIndex,
+  highlightRegion,
 }: FaxPageViewerProps) {
   const metadata = [
     { label: "From", value: fax.senderName },
@@ -36,6 +38,7 @@ export function FaxPageViewer({
       detectedDocType={currentPage?.detectedDocType}
       pdfUrl={fax.pdfUrl}
       showSignature
+      highlightRegion={highlightRegion}
     />
   );
 }
