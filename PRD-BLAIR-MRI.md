@@ -572,7 +572,7 @@ Every field has a status tag indicating data provenance:
 - **AI Extracted** (green) — AI successfully read this field from the requisition
 - **AI Verified** (blue) — AI automatically verified this (e.g., duplicate check, patient directory match)
 - **AI Match** (indigo) — Field populated from a directory match (patient or physician)
-- **User Verified** (violet) — Human modified this field from its original AI-extracted state
+- **User Labelled** (violet) — Human modified or confirmed this field from its original AI-extracted state
 - **Failed** (red) — AI attempted extraction but failed
 - **Missing** (amber) — Field requires manual input; row highlighted with amber background
 - **New Entry** (blue) — Will create a new directory record on approval
@@ -596,10 +596,12 @@ Every field has a status tag indicating data provenance:
 
 ### Physician Information
 
-- Physician directory matching via search dropdown
-- When matched, billing number auto-populates from directory
-- When not found, amber info box: "Physician not in directory — new entry created on approval"
-- Phone/fax contact is always editable (may differ from directory)
+- Physician directory matching via Salesforce CRM search dropdown
+- Bottom of dropdown always shows "Create new physician — not in Salesforce" option
+- When matched from directory, billing number auto-populates and locks (non-editable)
+- When not found (new physician), amber info box: "Physician not in Salesforce — new entry created on approval" and all physician fields become editable
+- Phone contact and fax contact are separate fields (split from combined phone/fax)
+- Phone and fax are always editable regardless of match status (may differ from directory)
 
 ### Interaction Patterns
 
@@ -610,6 +612,21 @@ Every field has a status tag indicating data provenance:
 - **Patient fields are conditionally locked**: when a patient is matched from the directory, name/DOB/OHIP are read-only to prevent errors
 - **Progress bar**: tracks completion (X/15 items), turns green at 100%
 - **Approve button disabled** until all 15 items are checked and eligibility passes
+
+### Initial KMH Eligibility Screen
+
+- Auto-validated checks (patient age ≥ 12, weight < 300 lbs) — not interactive checkboxes
+- If any check fails, a blocking banner appears with "Manual Override" button
+- Manual override requires a clinical justification reason (free text) before it can be confirmed
+- Override reason is displayed after confirmation for audit trail
+- Eligibility gate blocks approval independently of checklist progress
+
+### Clinical Information
+
+- Area to scan (AI Extracted, editable)
+- Clinical indication (AI Extracted, editable)
+- Previous test reports (AI Extracted — handles Yes/No/Not filled variations)
+- Screening section filled by physician (manual verification)
 
 ---
 
