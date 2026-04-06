@@ -367,9 +367,11 @@ export function TriageChecklist({ fax, onApprove, onRequestInfo, onReject, onHig
               </SelectContent>
             </Select>
             {urgency === "urgent" && (
-              <div className="mt-1.5" onMouseEnter={() => onHighlightChange?.(FIELD_REGIONS.urgencyReason)} onMouseLeave={() => onHighlightChange?.(null)}>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Reason</span>
-                <EditableValue value={urgencyReason} onChange={(v) => { setUrgencyReason(v); setUserLabelledFields(prev => new Set([...prev, "urgencyReason"])); }} placeholder="Enter reason for urgency..." />
+              <div className="mt-1.5 flex items-center gap-2" onMouseEnter={() => onHighlightChange?.(FIELD_REGIONS.urgencyReason)} onMouseLeave={() => onHighlightChange?.(null)}>
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold shrink-0">Reason</span>
+                <div className="flex-1">
+                  <EditableValue value={urgencyReason} onChange={(v) => { setUrgencyReason(v); setUserLabelledFields(prev => new Set([...prev, "urgencyReason"])); }} placeholder="Enter reason for urgency..." />
+                </div>
               </div>
             )}
           </div>
