@@ -603,6 +603,36 @@ Every field has a status tag indicating data provenance:
 - Phone contact and fax contact are separate fields (split from combined phone/fax)
 - Phone and fax are always editable regardless of match status (may differ from directory)
 
+### Three-Tab Review Pane
+
+The triage review dialog uses a 3-tab layout matching the original referral review pane pattern:
+
+**Review Tab** — The triage checklist with all sections (Urgency, Patient, Physician, Clinical, Eligibility). "Request Missing Info" button opens the compose panel.
+
+**Comms Tab** — Communication history with the referring physician/clinic:
+- Messages rendered as cards with channel-specific styling (fax = sky, email = cyan, phone = purple)
+- Outbound messages align right, inbound align left
+- AI-initiated messages tagged with "Auto" badge
+- Status indicators: sent, awaiting response, received, failed
+- "Send Communication" button at the bottom opens compose panel
+- Amber dot indicator on tab when communications exist
+
+**Timeline Tab** — Chronological event log:
+- Event types: received, classified, triage_started, info_requested, info_received, approved, rejected
+- Vertical connector line between events with colored icon circles
+- Relative timestamps ("2 hours ago") + absolute date/time
+- AI badge for automated actions, actor name for human actions
+
+### Compose Panel (Slide-Over)
+
+Triggered by "Request Missing Info" or "Send Communication":
+- Slides in from the right edge, overlays the review dialog
+- Three channel options: Fax, Email, Phone (disabled if contact info missing)
+- Checkbox list of missing items to request
+- AI-generated message template that updates per channel/items selection
+- Automated follow-up scheduling (1, 2, 3, 5 days, or 1 week)
+- Toast notification on send confirmation
+
 ### Interaction Patterns
 
 - **Entire row is clickable** to toggle the checkbox
